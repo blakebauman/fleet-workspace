@@ -46,9 +46,16 @@ export class AIService {
 					urgency: { type: 'string', enum: ['low', 'medium', 'high', 'critical'] },
 					leadTimeMs: { type: 'number', minimum: 0 },
 					reasoning: { type: 'string' },
-					confidence: { type: 'number', minimum: 0, maximum: 1 }
+					confidence: { type: 'number', minimum: 0, maximum: 1 },
 				},
-				required: ['shouldReorder', 'reorderQuantity', 'urgency', 'leadTimeMs', 'reasoning', 'confidence']
+				required: [
+					'shouldReorder',
+					'reorderQuantity',
+					'urgency',
+					'leadTimeMs',
+					'reasoning',
+					'confidence',
+				],
 			}
 
 			// AI analysis prompt
@@ -72,17 +79,18 @@ Provide a JSON response with the exact schema specified.`
 				messages: [
 					{
 						role: 'system',
-						content: 'You are an expert inventory analyst. Always respond with valid JSON matching the exact schema provided.'
+						content:
+							'You are an expert inventory analyst. Always respond with valid JSON matching the exact schema provided.',
 					},
 					{
 						role: 'user',
-						content: analysisPrompt
-					}
+						content: analysisPrompt,
+					},
 				],
 				response_format: {
 					type: 'json_schema',
-					schema: InventoryAnalysisSchema
-				}
+					schema: InventoryAnalysisSchema,
+				},
 			})
 
 			// Parse structured AI response
@@ -91,7 +99,6 @@ Provide a JSON response with the exact schema specified.`
 
 			console.log(`AI Analysis for ${sku}:`, insights)
 			return insights
-
 		} catch (error) {
 			console.error(`Failed to analyze inventory trends for ${sku}:`, error)
 			// Return conservative fallback analysis
@@ -102,14 +109,14 @@ Provide a JSON response with the exact schema specified.`
 				urgency: 'medium',
 				leadTimeMs: 7 * 24 * 60 * 60 * 1000, // 7 days
 				reasoning: 'Fallback analysis due to AI processing error',
-				confidence: 0.5
+				confidence: 0.5,
 			}
 		}
 	}
 
 	// Daily demand forecasting workflow
 	async runDemandForecast(
-		inventoryData: Array<{sku: string; currentStock: number; lowThreshold: number}>,
+		inventoryData: Array<{ sku: string; currentStock: number; lowThreshold: number }>,
 		location: string
 	): Promise<DemandForecast[]> {
 		try {
@@ -128,10 +135,10 @@ Provide a JSON response with the exact schema specified.`
 						predictedDemand: { type: 'number', minimum: 0 },
 						confidence: { type: 'number', minimum: 0, maximum: 1 },
 						trendDirection: { type: 'string', enum: ['increasing', 'decreasing', 'stable'] },
-						reasoning: { type: 'string' }
+						reasoning: { type: 'string' },
 					},
-					required: ['sku', 'predictedDemand', 'confidence', 'trendDirection', 'reasoning']
-				}
+					required: ['sku', 'predictedDemand', 'confidence', 'trendDirection', 'reasoning'],
+				},
 			}
 
 			// AI-powered demand forecasting
@@ -149,23 +156,23 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 				messages: [
 					{
 						role: 'system',
-						content: 'You are a demand forecasting expert. Always respond with valid JSON array matching the exact schema provided.'
+						content:
+							'You are a demand forecasting expert. Always respond with valid JSON array matching the exact schema provided.',
 					},
 					{
 						role: 'user',
-						content: forecastPrompt
-					}
+						content: forecastPrompt,
+					},
 				],
 				response_format: {
 					type: 'json_schema',
-					schema: DemandForecastSchema
-				}
+					schema: DemandForecastSchema,
+				},
 			})
 
 			const forecasts = aiResponse.parsed as DemandForecast[]
 			console.log(`Demand forecast completed for ${forecasts.length} SKUs`)
 			return forecasts
-
 		} catch (error) {
 			console.error('Failed to run demand forecast:', error)
 			return []
@@ -180,7 +187,7 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 
 			// Use Workers AI to generate embedding
 			const embedding = await this.env.AI.run('@cf/baai/bge-base-en-v1.5', {
-				text: productDescription
+				text: productDescription,
 			})
 
 			return embedding.data[0]
@@ -199,16 +206,18 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 				urgency: 'medium',
 				leadTimeMs: 7 * 24 * 60 * 60 * 1000,
 				reasoning: 'Current stock below threshold. Historical data suggests moderate demand.',
-				confidence: 0.8
+				confidence: 0.8,
 			}
 		} else if (prompt.includes('forecast')) {
-			return [{
-				sku: 'MOCK-SKU',
-				predictedDemand: 30,
-				confidence: 0.75,
-				trendDirection: 'stable',
-				reasoning: 'Steady demand pattern observed over past 30 days'
-			}]
+			return [
+				{
+					sku: 'MOCK-SKU',
+					predictedDemand: 30,
+					confidence: 0.75,
+					trendDirection: 'stable',
+					reasoning: 'Steady demand pattern observed over past 30 days',
+				},
+			]
 		}
 		return { message: 'Mock AI response for POC demonstration' }
 	}

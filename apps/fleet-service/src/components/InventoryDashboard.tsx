@@ -1,5 +1,6 @@
+import { Button, Card, Grid, Input, StatCard } from './SimpleComponents'
+
 import type { FC } from 'hono/jsx'
-import { Card, Input, Button, Grid, StatCard } from './SimpleComponents'
 
 interface InventoryDashboardProps {
 	path: string
@@ -19,12 +20,7 @@ export const InventoryDashboard: FC<InventoryDashboardProps> = ({ path: _path })
 			<Card title="Inventory Management">
 				<form id="inventory-form">
 					<Grid cols={2}>
-						<Input
-							label="SKU"
-							id="inventory-sku"
-							placeholder="e.g., WIDGET-001"
-							required
-						/>
+						<Input label="SKU" id="inventory-sku" placeholder="e.g., WIDGET-001" required />
 						<Input
 							label="Product Name"
 							id="inventory-name"
@@ -49,18 +45,10 @@ export const InventoryDashboard: FC<InventoryDashboardProps> = ({ path: _path })
 							required
 						/>
 					</Grid>
-					<Button
-						type="submit"
-						variant="primary"
-						onclick="addInventoryItem(event)"
-					>
+					<Button type="submit" variant="primary" onclick="addInventoryItem(event)">
 						Add Item
 					</Button>
-					<Button
-						type="button"
-						variant="secondary"
-						onclick="syncInventory()"
-					>
+					<Button type="button" variant="secondary" onclick="syncInventory()">
 						Sync All
 					</Button>
 				</form>

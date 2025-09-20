@@ -1,5 +1,7 @@
 // Demand Forecast Workflow - Multi-step forecasting with data gathering and AI analysis
-import { WorkflowEntrypoint, WorkflowEvent, WorkflowStep } from 'cloudflare:workers'
+import { WorkflowEntrypoint } from 'cloudflare:workers'
+
+import type { WorkflowEvent, WorkflowStep } from 'cloudflare:workers'
 
 export interface ForecastWorkflowParams {
 	location: string
@@ -20,9 +22,11 @@ export interface ForecastResult {
 
 export class DemandForecastWorkflow extends WorkflowEntrypoint<unknown, ForecastWorkflowParams> {
 	async run(event: Readonly<WorkflowEvent<ForecastWorkflowParams>>, step: WorkflowStep) {
-		const { location, forecastPeriod, skuFilter, forceRefresh } = event.payload
+		const { location, forecastPeriod, skuFilter, forceRefresh: _forceRefresh } = event.payload
 
-		console.log(`Starting demand forecast workflow for location: ${location}, period: ${forecastPeriod} days`)
+		console.log(
+			`Starting demand forecast workflow for location: ${location}, period: ${forecastPeriod} days`
+		)
 
 		// Step 1: Gather historical data
 		const historicalData = await step.do('gather-historical-data', async () => {
@@ -78,12 +82,12 @@ export class DemandForecastWorkflow extends WorkflowEntrypoint<unknown, Forecast
 		return {
 			status: 'completed',
 			forecasts: adjustedForecasts.length,
-			recommendations: recommendations.length
+			recommendations: recommendations.length,
 		}
 	}
 
 	// Helper methods
-	private async gatherHistoricalData(location: string, skuFilter?: string[]): Promise<any> {
+	private async gatherHistoricalData(location: string, _skuFilter?: string[]): Promise<any> {
 		// In real implementation, this would:
 		// - Query sales history from database
 		// - Gather inventory movement data
@@ -93,17 +97,17 @@ export class DemandForecastWorkflow extends WorkflowEntrypoint<unknown, Forecast
 		console.log(`Gathering historical data for location: ${location}`)
 
 		// Simulate data gathering
-		await new Promise(resolve => setTimeout(resolve, 2000))
+		await new Promise((resolve) => setTimeout(resolve, 2000))
 
 		return {
 			salesHistory: [],
 			inventoryMovements: [],
 			seasonalPatterns: {},
-			promotionalData: {}
+			promotionalData: {},
 		}
 	}
 
-	private async gatherExternalFactors(location: string, forecastPeriod: number): Promise<any> {
+	private async gatherExternalFactors(location: string, _forecastPeriod: number): Promise<any> {
 		// In real implementation, this would:
 		// - Get weather data
 		// - Check economic indicators
@@ -113,13 +117,13 @@ export class DemandForecastWorkflow extends WorkflowEntrypoint<unknown, Forecast
 		console.log(`Gathering external factors for location: ${location}`)
 
 		// Simulate external data gathering
-		await new Promise(resolve => setTimeout(resolve, 1500))
+		await new Promise((resolve) => setTimeout(resolve, 1500))
 
 		return {
 			weatherForecast: {},
 			economicIndicators: {},
 			competitorActivity: {},
-			marketTrends: {}
+			marketTrends: {},
 		}
 	}
 
@@ -135,7 +139,7 @@ export class DemandForecastWorkflow extends WorkflowEntrypoint<unknown, Forecast
 		return {
 			cleanedHistorical: historicalData,
 			cleanedExternal: externalFactors,
-			qualityScore: 0.95
+			qualityScore: 0.95,
 		}
 	}
 
@@ -149,7 +153,7 @@ export class DemandForecastWorkflow extends WorkflowEntrypoint<unknown, Forecast
 		console.log(`Running AI forecasting for ${forecastPeriod} days`)
 
 		// Simulate AI processing
-		await new Promise(resolve => setTimeout(resolve, 3000))
+		await new Promise((resolve) => setTimeout(resolve, 3000))
 
 		// Mock forecast results
 		return [
@@ -160,7 +164,7 @@ export class DemandForecastWorkflow extends WorkflowEntrypoint<unknown, Forecast
 				trendDirection: 'increasing',
 				reasoning: 'Strong seasonal growth pattern detected',
 				seasonalityFactor: 1.2,
-				recommendations: ['Increase stock levels', 'Prepare for peak season']
+				recommendations: ['Increase stock levels', 'Prepare for peak season'],
 			},
 			{
 				sku: 'MOUSE-001',
@@ -169,12 +173,15 @@ export class DemandForecastWorkflow extends WorkflowEntrypoint<unknown, Forecast
 				trendDirection: 'stable',
 				reasoning: 'Consistent demand pattern with minor fluctuations',
 				seasonalityFactor: 1.0,
-				recommendations: ['Maintain current stock levels']
-			}
+				recommendations: ['Maintain current stock levels'],
+			},
 		]
 	}
 
-	private async applyBusinessRules(forecasts: ForecastResult[], location: string): Promise<ForecastResult[]> {
+	private async applyBusinessRules(
+		forecasts: ForecastResult[],
+		location: string
+	): Promise<ForecastResult[]> {
 		// In real implementation, this would:
 		// - Apply business constraints
 		// - Adjust for known events
@@ -183,17 +190,17 @@ export class DemandForecastWorkflow extends WorkflowEntrypoint<unknown, Forecast
 
 		console.log(`Applying business rules for location: ${location}`)
 
-		return forecasts.map(forecast => ({
+		return forecasts.map((forecast) => ({
 			...forecast,
 			predictedDemand: Math.max(0, forecast.predictedDemand), // Ensure non-negative
-			recommendations: [
-				...forecast.recommendations,
-				'Review with procurement team'
-			]
+			recommendations: [...forecast.recommendations, 'Review with procurement team'],
 		}))
 	}
 
-	private async generateRecommendations(forecasts: ForecastResult[], location: string): Promise<any[]> {
+	private async generateRecommendations(
+		forecasts: ForecastResult[],
+		_location: string
+	): Promise<any[]> {
 		// In real implementation, this would:
 		// - Analyze forecast patterns
 		// - Generate actionable recommendations
@@ -208,29 +215,36 @@ export class DemandForecastWorkflow extends WorkflowEntrypoint<unknown, Forecast
 				priority: 'high',
 				sku: 'LAPTOP-001',
 				action: 'Place reorder for 50 units',
-				reasoning: 'Forecast shows increasing demand trend'
+				reasoning: 'Forecast shows increasing demand trend',
 			},
 			{
 				type: 'monitor',
 				priority: 'medium',
 				sku: 'MOUSE-001',
 				action: 'Monitor stock levels closely',
-				reasoning: 'Stable demand but high volume'
-			}
+				reasoning: 'Stable demand but high volume',
+			},
 		]
 	}
 
-	private async storeForecasts(forecasts: ForecastResult[], location: string, forecastPeriod: number): Promise<void> {
+	private async storeForecasts(
+		forecasts: ForecastResult[],
+		_location: string,
+		_forecastPeriod: number
+	): Promise<void> {
 		// In real implementation, this would:
 		// - Store in database with proper indexing
 		// - Maintain forecast history
 		// - Update forecast accuracy metrics
 		// - Handle concurrent updates
 
-		console.log(`Storing ${forecasts.length} forecasts for location: ${location}`)
+		console.log(`Storing ${forecasts.length} forecasts for location: ${_location}`)
 	}
 
-	private async triggerReorderRecommendations(forecasts: ForecastResult[], location: string): Promise<void> {
+	private async triggerReorderRecommendations(
+		forecasts: ForecastResult[],
+		location: string
+	): Promise<void> {
 		// In real implementation, this would:
 		// - Identify SKUs needing reorders
 		// - Calculate optimal reorder quantities
@@ -240,7 +254,11 @@ export class DemandForecastWorkflow extends WorkflowEntrypoint<unknown, Forecast
 		console.log(`Triggering reorder recommendations for location: ${location}`)
 	}
 
-	private async sendForecastSummary(forecasts: ForecastResult[], recommendations: any[], location: string): Promise<void> {
+	private async sendForecastSummary(
+		forecasts: ForecastResult[],
+		recommendations: any[],
+		location: string
+	): Promise<void> {
 		// In real implementation, this would:
 		// - Generate summary report
 		// - Send to stakeholders
@@ -250,13 +268,13 @@ export class DemandForecastWorkflow extends WorkflowEntrypoint<unknown, Forecast
 		console.log(`Sending forecast summary for location: ${location}`)
 	}
 
-	private async scheduleNextForecast(location: string, forecastPeriod: number): Promise<void> {
+	private async scheduleNextForecast(_location: string, _forecastPeriod: number): Promise<void> {
 		// In real implementation, this would:
 		// - Schedule next forecast run
 		// - Adjust frequency based on volatility
 		// - Handle location-specific schedules
 		// - Manage resource allocation
 
-		console.log(`Scheduling next forecast for location: ${location}`)
+		console.log(`Scheduling next forecast for location: ${_location}`)
 	}
 }

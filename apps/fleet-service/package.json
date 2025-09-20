@@ -16,24 +16,25 @@
 		"test": "run-vitest"
 	},
 	"dependencies": {
-		"@cloudflare/agents": "^0.1.0",
+		"@cloudflare/agents": "0.0.16",
 		"@repo/hono-helpers": "workspace:*",
 		"@repo/workspace-dependencies": "workspace:*",
 		"hono": "4.9.1",
-		"lucide-react": "^0.544.0",
+		"lucide-react": "0.544.0",
 		"workers-tagged-logger": "0.13.2",
-		"zod": "^3.22.4"
+		"zod": "4.1.9"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "0.8.63",
+		"@cloudflare/workers-types": "4.20250813.0",
 		"@repo/eslint-config": "workspace:*",
 		"@repo/tools": "workspace:*",
 		"@repo/typescript-config": "workspace:*",
-		"@tailwindcss/typography": "^0.5.18",
+		"@tailwindcss/typography": "0.5.18",
 		"@types/node": "22.15.27",
-		"autoprefixer": "^10.4.21",
-		"postcss": "^8.5.6",
-		"tailwindcss": "^4.1.13",
+		"autoprefixer": "10.4.21",
+		"postcss": "8.5.6",
+		"tailwindcss": "4.1.13",
 		"vitest": "3.2.4",
 		"wrangler": "4.29.1"
 	}

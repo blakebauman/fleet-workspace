@@ -1,6 +1,7 @@
 // Vectorize Service for product similarity and recommendations
-import type { Env, InventoryItem } from './base-fleet-manager'
 import { AIService } from './ai-service'
+
+import type { Env, InventoryItem } from './base-fleet-manager'
 
 export interface SimilarProduct {
 	sku: string
@@ -33,13 +34,13 @@ export class VectorizeService {
 			const results = await this.env.INVENTORY_VECTORS.query(productEmbedding, {
 				topK: limit,
 				returnValues: true,
-				returnMetadata: true
+				returnMetadata: true,
 			})
 
 			return results.matches.map((match: any) => ({
 				sku: match.metadata?.sku || 'unknown',
 				similarity: match.score || 0,
-				name: match.metadata?.name || 'Unknown Product'
+				name: match.metadata?.name || 'Unknown Product',
 			}))
 		} catch (error) {
 			console.error('Failed to get similar products:', error)
@@ -48,7 +49,7 @@ export class VectorizeService {
 	}
 
 	// Generate product embedding for Vectorize
-	private async getProductEmbedding(sku: string): Promise<number[] | null> {
+	private async getProductEmbedding(_sku: string): Promise<number[] | null> {
 		try {
 			// This would need access to the inventory item
 			// In a real implementation, this would be passed as a parameter
@@ -73,17 +74,19 @@ export class VectorizeService {
 			if (!embedding) return
 
 			// Store in Vectorize
-			await this.env.INVENTORY_VECTORS.insert([{
-				id: sku,
-				values: embedding,
-				metadata: {
-					sku: item.sku,
-					name: item.name,
-					location,
-					stock: item.currentStock,
-					threshold: item.lowStockThreshold
-				}
-			}])
+			await this.env.INVENTORY_VECTORS.insert([
+				{
+					id: sku,
+					values: embedding,
+					metadata: {
+						sku: item.sku,
+						name: item.name,
+						location,
+						stock: item.currentStock,
+						threshold: item.lowStockThreshold,
+					},
+				},
+			])
 
 			console.log(`Stored embedding for product: ${sku}`)
 		} catch (error) {
@@ -110,7 +113,10 @@ export class VectorizeService {
 	}
 
 	// Search products by description
-	async searchProductsByDescription(description: string, limit: number = 10): Promise<SimilarProduct[]> {
+	async searchProductsByDescription(
+		description: string,
+		limit: number = 10
+	): Promise<SimilarProduct[]> {
 		try {
 			if (!this.env.INVENTORY_VECTORS) {
 				console.warn('Vectorize not available, returning empty search results')
@@ -123,7 +129,7 @@ export class VectorizeService {
 				name: description,
 				currentStock: 0,
 				lowStockThreshold: 0,
-				lastUpdated: new Date().toISOString()
+				lastUpdated: new Date().toISOString(),
 			})
 
 			if (!queryEmbedding) {
@@ -134,13 +140,13 @@ export class VectorizeService {
 			const results = await this.env.INVENTORY_VECTORS.query(queryEmbedding, {
 				topK: limit,
 				returnValues: true,
-				returnMetadata: true
+				returnMetadata: true,
 			})
 
 			return results.matches.map((match: any) => ({
 				sku: match.metadata?.sku || 'unknown',
 				similarity: match.score || 0,
-				name: match.metadata?.name || 'Unknown Product'
+				name: match.metadata?.name || 'Unknown Product',
 			}))
 		} catch (error) {
 			console.error('Failed to search products by description:', error)

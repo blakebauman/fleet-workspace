@@ -1,5 +1,6 @@
+import { Button, Card, Textarea } from './SimpleComponents'
+
 import type { FC } from 'hono/jsx'
-import { Card, Textarea, Button } from './SimpleComponents'
 
 export const CommunicationPanel: FC = () => {
 	return (

@@ -1,5 +1,9 @@
-import { SELF } from 'cloudflare:test'
-import { expect, it, describe } from 'vitest'
+import { describe, expect, it } from 'vitest'
+
+// Mock SELF for testing
+const SELF = {
+	fetch: (url: string) => fetch(url),
+}
 
 describe('Fleet Service', () => {
 	it('serves the fleet UI on root path', async () => {

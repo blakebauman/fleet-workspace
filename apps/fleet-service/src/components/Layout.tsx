@@ -12,8 +12,9 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({ title, path: _path,
 				<meta charset="UTF-8" />
 				<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 				<title>{title}</title>
-				<style dangerouslySetInnerHTML={{
-					__html: `
+				<style
+					dangerouslySetInnerHTML={{
+						__html: `
 						/* Minimal Black & White Design System */
 						* { box-sizing: border-box; margin: 0; padding: 0; }
 						body {
@@ -530,8 +531,9 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({ title, path: _path,
 							margin: 8px 0;
 							font-size: 12px;
 						}
-					`
-				}} />
+					`,
+					}}
+				/>
 			</head>
 			<body>
 				<div class="connection-status" id="connectionStatus">

@@ -40,36 +40,45 @@ WebSocket connected to path: /, agents: test-agent, counter: 0
 ## 🔧 Common Issues & Fixes
 
 ### Issue 1: WebSocket Connection Failed
+
 **Symptoms**: Console shows "WebSocket not connected"
 **Causes**:
+
 - Dev server not running
 - Port 8787 blocked
 - WebSocket URL construction wrong
 
 **Fix**:
+
 1. Restart dev server: `pnpm --filter fleet-service dev`
 2. Check URL: Should be `ws://localhost:8787/ws` for root
 3. For child paths: `ws://localhost:8787/team1/ws`
 
 ### Issue 2: Agent Created But Not Visible
+
 **Symptoms**: Console shows agent creation but UI doesn't update
 **Causes**:
+
 - WebSocket message not received
 - UI update function not working
 - State synchronization issue
 
 **Fix**:
+
 1. Check browser console for `WebSocket message received` logs
 2. Verify the `updateState` function is called
 3. Check if `agentList.innerHTML` is being updated
 
 ### Issue 3: Wrong Durable Object Instance
+
 **Symptoms**: Agents appear in wrong locations
 **Causes**:
+
 - Path detection not working
 - DO routing incorrect
 
 **Fix**:
+
 1. Check console logs for "WebSocket connected to path: X"
 2. Verify the path matches your current URL
 3. Ensure DO is created with correct `idFromName(path)`
@@ -97,6 +106,7 @@ WebSocket connected to path: /, agents: test-agent, counter: 0
 ## ✅ Expected Behavior
 
 When everything works correctly:
+
 1. ✅ WebSocket connects immediately on page load
 2. ✅ Connection status shows "Connected" (green)
 3. ✅ Creating agent shows success message

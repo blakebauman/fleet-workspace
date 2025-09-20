@@ -1,5 +1,6 @@
+import { Button, Card, Input, StatCard } from './SimpleComponents'
+
 import type { FC } from 'hono/jsx'
-import { Card, Button, Input, StatCard } from './SimpleComponents'
 
 interface ChatInterfaceProps {
 	path: string
@@ -21,13 +22,22 @@ export const ChatInterface: FC<ChatInterfaceProps> = ({ path: _path }) => {
 				<div id="chat-messages" class="chat-messages">
 					<div class="chat-message assistant">
 						<div class="message-avatar">
-							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<path d="M12 8V4H8"/>
-								<rect width="16" height="12" x="4" y="8" rx="2"/>
-								<path d="M2 14h2"/>
-								<path d="M20 14h2"/>
-								<path d="M15 13v2"/>
-								<path d="M9 13v2"/>
+							<svg
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path d="M12 8V4H8" />
+								<rect width="16" height="12" x="4" y="8" rx="2" />
+								<path d="M2 14h2" />
+								<path d="M20 14h2" />
+								<path d="M15 13v2" />
+								<path d="M9 13v2" />
 							</svg>
 						</div>
 						<div class="message-content">
@@ -60,10 +70,7 @@ export const ChatInterface: FC<ChatInterfaceProps> = ({ path: _path }) => {
 							class="flex-1"
 						/>
 						<div style="align-self: end; margin-left: 10px;">
-							<Button
-								type="submit"
-								variant="primary"
-							>
+							<Button type="submit" variant="primary">
 								Send
 							</Button>
 						</div>
@@ -76,9 +83,18 @@ export const ChatInterface: FC<ChatInterfaceProps> = ({ path: _path }) => {
 							class="quick-action-btn"
 							onclick="sendQuickMessage('Show me low stock items')"
 						>
-							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<path d="M3 3v16a2 2 0 0 0 2 2h16"/>
-								<path d="m19 9-5 5-4-4-3 3"/>
+							<svg
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path d="M3 3v16a2 2 0 0 0 2 2h16" />
+								<path d="m19 9-5 5-4-4-3 3" />
 							</svg>
 							Low Stock
 						</Button>
@@ -87,9 +103,18 @@ export const ChatInterface: FC<ChatInterfaceProps> = ({ path: _path }) => {
 							class="quick-action-btn"
 							onclick="sendQuickMessage('What needs reordering?')"
 						>
-							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-								<path d="M3 3v5h5"/>
+							<svg
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+								<path d="M3 3v5h5" />
 							</svg>
 							Reorder
 						</Button>
@@ -98,9 +123,18 @@ export const ChatInterface: FC<ChatInterfaceProps> = ({ path: _path }) => {
 							class="quick-action-btn"
 							onclick="sendQuickMessage('Show inventory summary')"
 						>
-							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<rect width="18" height="18" x="3" y="3" rx="2"/>
-								<path d="M9 9h6v6H9z"/>
+							<svg
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<rect width="18" height="18" x="3" y="3" rx="2" />
+								<path d="M9 9h6v6H9z" />
 							</svg>
 							Summary
 						</Button>
@@ -109,28 +143,49 @@ export const ChatInterface: FC<ChatInterfaceProps> = ({ path: _path }) => {
 							class="quick-action-btn"
 							onclick="sendQuickMessage('Generate demand forecast')"
 						>
-							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<path d="M21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/>
-								<path d="M12 9v4"/>
-								<path d="M12 17h.01"/>
+							<svg
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path d="M21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
+								<path d="M12 9v4" />
+								<path d="M12 17h.01" />
 							</svg>
 							Forecast
 						</Button>
 					</div>
 
 					{/* Test Actions */}
-					<div class="chat-test-actions" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e5e7eb;">
+					<div
+						class="chat-test-actions"
+						style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e5e7eb;"
+					>
 						<Button
 							variant="secondary"
 							class="quick-action-btn test-persistence-btn"
 							onclick="testPersistence()"
 						>
-							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<path d="M9 12l2 2 4-4"/>
-								<path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3"/>
-								<path d="M3 12c1 0 3-1 3-3s-2-3-3-3-3 1-3 3 2 3 3 3"/>
-								<path d="M13 12h3a2 2 0 0 1 2 2v1"/>
-								<path d="M11 12H8a2 2 0 0 0-2 2v1"/>
+							<svg
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path d="M9 12l2 2 4-4" />
+								<path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3" />
+								<path d="M3 12c1 0 3-1 3-3s-2-3-3-3-3 1-3 3 2 3 3 3" />
+								<path d="M13 12h3a2 2 0 0 1 2 2v1" />
+								<path d="M11 12H8a2 2 0 0 0-2 2v1" />
 							</svg>
 							Test Persistence
 						</Button>
@@ -139,9 +194,18 @@ export const ChatInterface: FC<ChatInterfaceProps> = ({ path: _path }) => {
 							class="quick-action-btn test-persistence-25s-btn"
 							onclick="testPersistence25s()"
 						>
-							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<circle cx="12" cy="12" r="10"/>
-								<polyline points="12,6 12,12 16,14"/>
+							<svg
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<circle cx="12" cy="12" r="10" />
+								<polyline points="12,6 12,12 16,14" />
 							</svg>
 							Test 25s Persistence
 						</Button>
@@ -150,10 +214,19 @@ export const ChatInterface: FC<ChatInterfaceProps> = ({ path: _path }) => {
 							class="quick-action-btn test-websocket-btn"
 							onclick="testWebSocketConnection()"
 						>
-							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-								<polyline points="3.27,6.96 12,12.01 20.73,6.96"/>
-								<line x1="12" y1="22.08" x2="12" y2="12"/>
+							<svg
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+								<polyline points="3.27,6.96 12,12.01 20.73,6.96" />
+								<line x1="12" y1="22.08" x2="12" y2="12" />
 							</svg>
 							Test WebSocket
 						</Button>
@@ -166,7 +239,10 @@ export const ChatInterface: FC<ChatInterfaceProps> = ({ path: _path }) => {
 				<div class="grid grid-2">
 					<div class="feature-section">
 						<h4>Natural Language Queries</h4>
-						<p class="text-muted">Ask questions in plain English about your inventory. The AI understands context and can provide intelligent responses.</p>
+						<p class="text-muted">
+							Ask questions in plain English about your inventory. The AI understands context and
+							can provide intelligent responses.
+						</p>
 						<div class="example-queries">
 							<strong>Examples:</strong>
 							<ul>
@@ -179,7 +255,10 @@ export const ChatInterface: FC<ChatInterfaceProps> = ({ path: _path }) => {
 					</div>
 					<div class="feature-section">
 						<h4>Intelligent Actions</h4>
-						<p class="text-muted">The AI can execute actions based on your requests, such as updating stock levels, triggering reorders, or generating reports.</p>
+						<p class="text-muted">
+							The AI can execute actions based on your requests, such as updating stock levels,
+							triggering reorders, or generating reports.
+						</p>
 						<div class="action-examples">
 							<strong>Actions:</strong>
 							<ul>
@@ -202,7 +281,9 @@ export const ChatInterface: FC<ChatInterfaceProps> = ({ path: _path }) => {
 							<input type="checkbox" id="auto-execute" checked />
 							Auto-execute safe actions
 						</label>
-						<p class="text-small text-muted">Automatically execute low-risk actions without confirmation</p>
+						<p class="text-small text-muted">
+							Automatically execute low-risk actions without confirmation
+						</p>
 					</div>
 					<div class="setting-item">
 						<label>
@@ -229,8 +310,9 @@ export const ChatInterface: FC<ChatInterfaceProps> = ({ path: _path }) => {
 			</Card>
 
 			{/* Chat Styles */}
-			<style dangerouslySetInnerHTML={{
-				__html: `
+			<style
+				dangerouslySetInnerHTML={{
+					__html: `
 					/* Chat Interface Styles */
 					.chat-container {
 						height: 600px;
@@ -490,8 +572,9 @@ export const ChatInterface: FC<ChatInterfaceProps> = ({ path: _path }) => {
 						padding: 4px 8px;
 						border-radius: 12px;
 					}
-				`
-			}} />
+				`,
+				}}
+			/>
 		</div>
 	)
 }

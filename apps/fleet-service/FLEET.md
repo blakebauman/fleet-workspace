@@ -16,11 +16,13 @@ A demonstration of hierarchical Durable Objects in Cloudflare Workers, enabling 
 ## Setup
 
 1. Copy `wrangler.example.toml` to `wrangler.toml`:
+
 ```bash
 cp wrangler.example.toml wrangler.toml
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 # or if using bun
@@ -28,6 +30,7 @@ bun install
 ```
 
 3. Start the development server:
+
 ```bash
 npm run dev
 # or
@@ -35,6 +38,7 @@ bun run dev
 ```
 
 4. Deploy to Cloudflare Workers:
+
 ```bash
 npm run deploy
 # or
@@ -44,6 +48,7 @@ bun run deploy
 ## Architecture
 
 ### URL-Based Hierarchy
+
 ```
 Root (/)
 ├── agent1
@@ -59,6 +64,7 @@ Each path segment represents a unique Durable Object instance, creating an infin
 ### State Management
 
 Each DO maintains:
+
 - Local counter
 - List of child agents
 - WebSocket connections
@@ -114,4 +120,3 @@ Each DO maintains:
 - Provides real-time error feedback
 - Maintains WebSocket connection state
 - Implements proper error handling and validation
-

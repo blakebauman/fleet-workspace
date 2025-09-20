@@ -6,8 +6,9 @@ interface ClientScriptProps {
 
 export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 	return (
-		<script dangerouslySetInnerHTML={{
-			__html: `
+		<script
+			dangerouslySetInnerHTML={{
+				__html: `
 				// Prevent multiple script executions
 				if (window.fleetManagerScriptLoaded) {
 					console.log('[CLIENT] Fleet Manager script already loaded, skipping...');
@@ -1672,7 +1673,8 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 				}
 
 				} // End of script execution guard
-			`
-		}} />
+			`,
+			}}
+		/>
 	)
 }

@@ -27,9 +27,9 @@ Update the `d1_databases` section in `wrangler.jsonc` with your actual database 
     {
       "binding": "DB",
       "database_name": "fleet-analytics",
-      "database_id": "your-actual-database-id-here"
-    }
-  ]
+      "database_id": "your-actual-database-id-here",
+    },
+  ],
 }
 ```
 
@@ -76,20 +76,25 @@ wrangler d1 execute fleet-analytics --command="SELECT COUNT(*) as tenant_count F
 ## Production Considerations
 
 ### Indexes
+
 The schema includes optimized indexes for:
+
 - Tenant-based queries
 - Time-based analytics
 - SKU lookups
 - Performance metrics
 
 ### Data Retention
+
 Consider implementing data retention policies:
+
 - **Transactions**: Keep for 2+ years
 - **Sessions**: Keep for 90 days
 - **Metrics**: Keep for 1 year
 - **Analysis**: Keep for 6 months
 
 ### Backup Strategy
+
 - **Daily backups** of critical tables
 - **Point-in-time recovery** for transactions
 - **Cross-region replication** for disaster recovery
@@ -97,12 +102,14 @@ Consider implementing data retention policies:
 ## Monitoring
 
 ### Key Metrics to Track
+
 - Transaction volume per tenant
 - AI analysis accuracy
 - Workflow success rates
 - Database performance
 
 ### Alerts to Set Up
+
 - High transaction volume
 - Failed AI analyses
 - Workflow execution failures
@@ -140,6 +147,7 @@ wrangler d1 execute fleet-analytics --command="SELECT * FROM tenant_configuratio
 ## Next Steps
 
 After database setup:
+
 1. **Test the API** - Verify inventory operations work
 2. **Check audit logs** - Ensure transactions are being recorded
 3. **Monitor performance** - Watch for any issues
@@ -148,6 +156,7 @@ After database setup:
 ## Support
 
 For issues with database setup:
+
 1. Check Cloudflare D1 documentation
 2. Review Wrangler CLI logs
 3. Check Cloudflare dashboard for errors

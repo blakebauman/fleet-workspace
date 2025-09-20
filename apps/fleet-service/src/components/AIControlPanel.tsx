@@ -1,5 +1,6 @@
+import { Alert, Button, Card, Grid, Input, StatCard } from './SimpleComponents'
+
 import type { FC } from 'hono/jsx'
-import { Card, Input, Button, Grid, StatCard, Alert } from './SimpleComponents'
 
 interface AIControlPanelProps {
 	path: string
@@ -26,11 +27,7 @@ export const AIControlPanel: FC<AIControlPanelProps> = ({ path: _path }) => {
 							class="flex-1"
 						/>
 						<div style="align-self: end; margin-left: 10px;">
-							<Button
-								type="submit"
-								variant="primary"
-								onclick="analyzeInventory(event)"
-							>
+							<Button type="submit" variant="primary" onclick="analyzeInventory(event)">
 								Analyze
 							</Button>
 						</div>
@@ -81,7 +78,8 @@ export const AIControlPanel: FC<AIControlPanelProps> = ({ path: _path }) => {
 					</Button>
 				</Grid>
 				<Alert type="info" class="mb-20">
-					<strong>AI Status:</strong> AI workflows are currently <span id="ai-status">active</span> and monitoring inventory patterns.
+					<strong>AI Status:</strong> AI workflows are currently <span id="ai-status">active</span>{' '}
+					and monitoring inventory patterns.
 				</Alert>
 			</Card>
 		</div>

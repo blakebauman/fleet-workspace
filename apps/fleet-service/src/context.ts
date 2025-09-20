@@ -3,7 +3,7 @@ import type { SharedHonoEnv, SharedHonoVariables } from '@repo/hono-helpers/src/
 
 export type Env = SharedHonoEnv & {
 	FLEET_MANAGER: DurableObjectNamespace
-	AI: Ai
+	AI?: Ai
 	INVENTORY_VECTORS?: VectorizeIndex
 }
 

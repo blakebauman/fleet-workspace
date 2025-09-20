@@ -1,5 +1,6 @@
+import { Button, Card } from './SimpleComponents'
+
 import type { FC } from 'hono/jsx'
-import { Card, Button } from './SimpleComponents'
 
 interface StatusCardProps {
 	path: string
@@ -15,7 +16,9 @@ export const StatusCard: FC<StatusCardProps> = ({ path, parentPath }) => {
 			<div class="mb-16">
 				<div class="flex flex-between flex-center mb-8">
 					<span class="text-small">Active Locations</span>
-					<span id="agent-count" class="font-mono">0</span>
+					<span id="agent-count" class="font-mono">
+						0
+					</span>
 				</div>
 				<div class="flex flex-between flex-center mb-8">
 					<span class="text-small">Connection</span>
@@ -23,7 +26,9 @@ export const StatusCard: FC<StatusCardProps> = ({ path, parentPath }) => {
 				</div>
 				<div class="flex flex-between flex-center">
 					<span class="text-small">Sync Counter</span>
-					<span id="counter" class="font-mono">0</span>
+					<span id="counter" class="font-mono">
+						0
+					</span>
 				</div>
 			</div>
 

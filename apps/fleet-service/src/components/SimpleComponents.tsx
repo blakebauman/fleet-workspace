@@ -13,16 +13,12 @@ export const Button: FC<PropsWithChildren<ButtonProps>> = ({
 	type = 'button',
 	onclick,
 	class: className = '',
-	children
+	children,
 }) => {
 	const variantClass = `btn-${variant}`
 
 	return (
-		<button
-			type={type}
-			onclick={onclick}
-			class={`btn ${variantClass} ${className}`}
-		>
+		<button type={type} onclick={onclick} class={`btn ${variantClass} ${className}`}>
 			{children}
 		</button>
 	)
@@ -54,7 +50,7 @@ export const Input: FC<InputProps> = ({
 	min,
 	step,
 	value,
-	class: className = ''
+	class: className = '',
 }) => {
 	return (
 		<div class={`form-group ${className}`}>
@@ -91,18 +87,12 @@ export const Textarea: FC<TextareaProps> = ({
 	placeholder,
 	rows = 3,
 	required,
-	class: className = ''
+	class: className = '',
 }) => {
 	return (
 		<div class={`form-group ${className}`}>
 			<label for={id}>{label}</label>
-			<textarea
-				id={id}
-				name={id}
-				placeholder={placeholder}
-				rows={rows}
-				required={required}
-			/>
+			<textarea id={id} name={id} placeholder={placeholder} rows={rows} required={required} />
 		</div>
 	)
 }
@@ -116,7 +106,7 @@ interface CardProps {
 export const Card: FC<PropsWithChildren<CardProps>> = ({
 	title,
 	class: className = '',
-	children
+	children,
 }) => {
 	return (
 		<div class={`card ${className}`}>
@@ -135,13 +125,9 @@ interface GridProps {
 export const Grid: FC<PropsWithChildren<GridProps>> = ({
 	cols = 2,
 	class: className = '',
-	children
+	children,
 }) => {
-	return (
-		<div class={`grid grid-${cols} ${className}`}>
-			{children}
-		</div>
-	)
+	return <div class={`grid grid-${cols} ${className}`}>{children}</div>
 }
 
 // Simple Stat Card Component
@@ -154,7 +140,9 @@ interface StatCardProps {
 export const StatCard: FC<StatCardProps> = ({ number, label, id }) => {
 	return (
 		<div class="stat-card">
-			<div class="stat-number" id={id}>{number}</div>
+			<div class="stat-number" id={id}>
+				{number}
+			</div>
 			<div class="stat-label">{label}</div>
 		</div>
 	)
@@ -169,13 +157,9 @@ interface AlertProps {
 export const Alert: FC<PropsWithChildren<AlertProps>> = ({
 	type = 'info',
 	class: className = '',
-	children
+	children,
 }) => {
-	return (
-		<div class={`alert alert-${type} ${className}`}>
-			{children}
-		</div>
-	)
+	return <div class={`alert alert-${type} ${className}`}>{children}</div>
 }
 
 // Simple Tabs Component
@@ -186,13 +170,8 @@ interface TabsProps {
 export const Tabs: FC<TabsProps> = ({ tabs }) => {
 	return (
 		<div class="tabs">
-			{tabs.map(tab => (
-				<div
-					key={tab.id}
-					id={`tab-${tab.id}`}
-					class="tab"
-					onclick={`switchTab('${tab.id}')`}
-				>
+			{tabs.map((tab) => (
+				<div key={tab.id} id={`tab-${tab.id}`} class="tab" onclick={`switchTab('${tab.id}')`}>
 					{tab.label}
 				</div>
 			))}

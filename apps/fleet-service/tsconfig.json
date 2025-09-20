@@ -2,6 +2,7 @@
 	"extends": "@repo/typescript-config/workers.json",
 	"compilerOptions": {
 		"jsx": "react-jsx",
-		"jsxImportSource": "hono/jsx"
+		"jsxImportSource": "hono/jsx",
+		"types": ["@cloudflare/workers-types"]
 	}
 }

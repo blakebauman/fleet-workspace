@@ -120,10 +120,12 @@ export class QueueService {
 	// Execute reorder workflow
 	private async executeReorderWorkflow(data: any, location: string): Promise<void> {
 		try {
-			console.log(`Executing reorder workflow: ${data.quantity} units of ${data.sku} at ${location}`)
+			console.log(
+				`Executing reorder workflow: ${data.quantity} units of ${data.sku} at ${location}`
+			)
 
 			// Simulate reorder process
-			await new Promise(resolve => setTimeout(resolve, 2000))
+			await new Promise((resolve) => setTimeout(resolve, 2000))
 
 			// In a real implementation, this would:
 			// 1. Call supplier API to place order
@@ -131,7 +133,9 @@ export class QueueService {
 			// 3. Send notifications
 			// 4. Update audit trail
 
-			console.log(`✅ Reorder completed: ${data.quantity} units of ${data.sku} ordered with ${data.urgency} priority`)
+			console.log(
+				`✅ Reorder completed: ${data.quantity} units of ${data.sku} ordered with ${data.urgency} priority`
+			)
 		} catch (error) {
 			console.error('Reorder workflow failed:', error)
 			throw error
@@ -177,11 +181,11 @@ export class QueueService {
 	// Send notification to external systems
 	async sendExternalNotification(type: string, data: any, location: string): Promise<void> {
 		try {
-			const notification = {
+			const _notification = {
 				type,
 				data,
 				location,
-				timestamp: new Date().toISOString()
+				timestamp: new Date().toISOString(),
 			}
 
 			// In a real implementation, this would send to:

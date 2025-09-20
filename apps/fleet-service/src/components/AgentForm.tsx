@@ -1,17 +1,20 @@
+import { Button, Card, Input } from './SimpleComponents'
+
 import type { FC } from 'hono/jsx'
-import { Card, Input, Button } from './SimpleComponents'
 
 interface AgentFormProps {
 	currentPath?: string
 	isAtRoot?: boolean
 }
 
-export const AgentForm: FC<AgentFormProps> = ({ currentPath = '/', isAtRoot = false }) => {
-	const title = isAtRoot ? "Create Location" : "Create Sub-Location"
+export const AgentForm: FC<AgentFormProps> = ({
+	currentPath: _currentPath = '/',
+	isAtRoot = false,
+}) => {
+	const title = isAtRoot ? 'Create Location' : 'Create Sub-Location'
 
 	return (
 		<Card title={title}>
-
 			<form onsubmit="createAgent(event)">
 				<Input
 					label="Location Name"

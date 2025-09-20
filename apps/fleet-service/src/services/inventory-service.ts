@@ -1,10 +1,10 @@
 // Inventory Service for stock management and operations
-import type { Env, InventoryItem, InventoryUpdate, StockUpdateSchema } from './base-fleet-manager'
-import { InventoryError } from './base-fleet-manager'
 import { AIService } from './ai-service'
-import { VectorizeService } from './vectorize-service'
 import { QueueService } from './queue-service'
+import { VectorizeService } from './vectorize-service'
 import { WorkflowService } from './workflow-service'
+
+import type { Env, InventoryItem, InventoryUpdate } from './base-fleet-manager'
 
 export interface InventoryAlert {
 	type: 'low_stock' | 'out_of_stock' | 'overstock' | 'reorder_needed'
@@ -50,7 +50,7 @@ export class InventoryService {
 				name: `Product ${sku}`, // In real system, this would come from product catalog
 				currentStock: 0,
 				lowStockThreshold: 10, // Default threshold
-				lastUpdated: new Date().toISOString()
+				lastUpdated: new Date().toISOString(),
 			}
 		}
 
@@ -74,10 +74,13 @@ export class InventoryService {
 
 		// Record transaction in database for AI analysis
 		try {
-			await sqlStorage.exec(`
+			await sqlStorage.exec(
+				`
 				INSERT INTO inventory_transactions (sku, operation, quantity, location, timestamp)
 				VALUES (?, ?, ?, ?, ?)
-			`, [sku, operation, quantity, location, new Date().toISOString()])
+			`,
+				[sku, operation, quantity, location, new Date().toISOString()]
+			)
 		} catch (error) {
 			console.error('Failed to record inventory transaction:', error)
 		}
@@ -91,23 +94,12 @@ export class InventoryService {
 
 		// AI-powered low stock analysis and autonomous actions
 		if (item.currentStock <= item.lowStockThreshold) {
-			const alert: InventoryAlert = {
-				type: item.currentStock === 0 ? 'out_of_stock' : 'low_stock',
-				sku,
-				name: item.name,
-				currentStock: item.currentStock,
-				threshold: item.lowStockThreshold,
-				location,
-				severity: item.currentStock === 0 ? 'critical' : 'warning',
-				message: `Stock level ${item.currentStock} is below threshold ${item.lowStockThreshold}`
-			}
-
 			broadcastCallback({
 				type: 'lowStockAlert',
 				sku,
 				currentStock: item.currentStock,
 				threshold: item.lowStockThreshold,
-				location
+				location,
 			})
 
 			// Trigger AI-powered reorder analysis
@@ -119,10 +111,12 @@ export class InventoryService {
 			type: 'stockUpdate',
 			sku,
 			quantity: item.currentStock,
-			operation: 'set' // Always send current state
+			operation: 'set', // Always send current state
 		})
 
-		console.log(`🔄 Stock updated: ${sku} = ${item.currentStock} at ${location} (${previousStock} → ${item.currentStock})`)
+		console.log(
+			`🔄 Stock updated: ${sku} = ${item.currentStock} at ${location} (${previousStock} → ${item.currentStock})`
+		)
 	}
 
 	// Process low stock alert with AI analysis
@@ -152,10 +146,13 @@ export class InventoryService {
 			)
 
 			// Store analysis in database
-			await sqlStorage.exec(`
+			await sqlStorage.exec(
+				`
 				INSERT INTO inventory_analysis (sku, location, analysis, confidence, timestamp)
 				VALUES (?, ?, ?, ?, ?)
-			`, [sku, location, JSON.stringify(insights), insights.confidence, new Date().toISOString()])
+			`,
+				[sku, location, JSON.stringify(insights), insights.confidence, new Date().toISOString()]
+			)
 
 			if (insights.shouldReorder) {
 				// For high-value or critical items, use human-in-the-loop
@@ -171,7 +168,7 @@ export class InventoryService {
 					reasoning: insights.reasoning,
 					location,
 					estimatedCost: insights.reorderQuantity * 10, // Mock cost calculation
-					leadTimeMs: insights.leadTimeMs
+					leadTimeMs: insights.leadTimeMs,
 				})
 
 				// Log audit trail
@@ -183,25 +180,27 @@ export class InventoryService {
 						workflowId,
 						quantity: insights.reorderQuantity,
 						urgency: insights.urgency,
-						reasoning: insights.reasoning
+						reasoning: insights.reasoning,
 					},
-					timestamp: new Date().toISOString()
+					timestamp: new Date().toISOString(),
 				})
 
 				// Broadcast to connected clients
 				broadcastCallback({
 					type: 'message',
 					from: 'AI Inventory Agent',
-					content: `🤖 Auto-reorder initiated: ${insights.reorderQuantity} units of ${sku} (${insights.urgency} priority)`
+					content: `🤖 Auto-reorder initiated: ${insights.reorderQuantity} units of ${sku} (${insights.urgency} priority)`,
 				})
 			}
 
 			// Store decision in audit trail
-			await sqlStorage.exec(`
+			await sqlStorage.exec(
+				`
 				INSERT INTO inventory_decisions (sku, location, decision_type, reasoning, timestamp)
 				VALUES (?, ?, ?, ?, ?)
-			`, [sku, location, 'reorder_analysis', insights.reasoning, new Date().toISOString()])
-
+			`,
+				[sku, location, 'reorder_analysis', insights.reasoning, new Date().toISOString()]
+			)
 		} catch (error) {
 			console.error(`Failed to process low stock alert for ${sku}:`, error)
 		}
@@ -218,15 +217,14 @@ export class InventoryService {
 			broadcastCallback({
 				type: 'message',
 				from: 'System',
-				content: `🚨 APPROVAL NEEDED: Reorder for ${insights.sku} - ${insights.reorderQuantity} units (${insights.urgency} priority). Reason: ${insights.reasoning}`
+				content: `🚨 APPROVAL NEEDED: Reorder for ${insights.sku} - ${insights.reorderQuantity} units (${insights.urgency} priority). Reason: ${insights.reasoning}`,
 			})
 
 			// For POC, auto-approve after short delay (in production, this would wait for human input)
-			await new Promise(resolve => setTimeout(resolve, 2000))
+			await new Promise((resolve) => setTimeout(resolve, 2000))
 
 			console.log(`Auto-approved reorder for ${insights.sku} (POC mode)`)
 			return true
-
 		} catch (error) {
 			console.error('Failed to request human approval:', error)
 			return false // Fail safe
@@ -250,7 +248,7 @@ export class InventoryService {
 					threshold: item.lowStockThreshold,
 					location,
 					severity: item.currentStock === 0 ? 'critical' : 'warning',
-					message: `Stock level ${item.currentStock} is below threshold ${item.lowStockThreshold}`
+					message: `Stock level ${item.currentStock} is below threshold ${item.lowStockThreshold}`,
 				})
 			}
 		}
@@ -269,13 +267,17 @@ export class InventoryService {
 	}
 
 	// Trigger demand forecast workflow
-	async triggerDemandForecast(location: string, forecastPeriod: number = 30, skuFilter?: string[]): Promise<string> {
+	async triggerDemandForecast(
+		location: string,
+		forecastPeriod: number = 30,
+		skuFilter?: string[]
+	): Promise<string> {
 		try {
 			const workflowId = await this.workflowService.triggerForecastWorkflow({
 				location,
 				forecastPeriod,
 				skuFilter,
-				forceRefresh: false
+				forceRefresh: false,
 			})
 
 			// Log audit trail
@@ -286,9 +288,9 @@ export class InventoryService {
 				details: {
 					workflowId,
 					forecastPeriod,
-					skuFilter
+					skuFilter,
 				},
-				timestamp: new Date().toISOString()
+				timestamp: new Date().toISOString(),
 			})
 
 			return workflowId
@@ -299,13 +301,17 @@ export class InventoryService {
 	}
 
 	// Trigger inventory sync workflow
-	async triggerInventorySync(location: string, systems: ('erp' | 'wms' | 'pos')[], forceFullSync: boolean = false): Promise<string> {
+	async triggerInventorySync(
+		location: string,
+		systems: Array<'erp' | 'wms' | 'pos'>,
+		forceFullSync: boolean = false
+	): Promise<string> {
 		try {
 			const workflowId = await this.workflowService.triggerSyncWorkflow({
 				location,
 				systems,
 				forceFullSync,
-				lastSyncTimestamp: undefined
+				lastSyncTimestamp: undefined,
 			})
 
 			// Log audit trail
@@ -316,9 +322,9 @@ export class InventoryService {
 				details: {
 					workflowId,
 					systems,
-					forceFullSync
+					forceFullSync,
 				},
-				timestamp: new Date().toISOString()
+				timestamp: new Date().toISOString(),
 			})
 
 			return workflowId
@@ -329,19 +335,29 @@ export class InventoryService {
 	}
 
 	// Get workflow status
-	async getWorkflowStatus(workflowId: string, workflowType: 'reorder' | 'forecast' | 'sync'): Promise<any> {
+	async getWorkflowStatus(
+		workflowId: string,
+		workflowType: 'reorder' | 'forecast' | 'sync'
+	): Promise<any> {
 		return await this.workflowService.getWorkflowStatus(workflowId, workflowType)
 	}
 
 	// Helper methods
-	private async getSalesHistory(sku: string, location: string, sqlStorage: SqlStorage): Promise<any[]> {
+	private async getSalesHistory(
+		sku: string,
+		location: string,
+		sqlStorage: SqlStorage
+	): Promise<any[]> {
 		try {
-			const result = await sqlStorage.exec(`
+			const result = await sqlStorage.exec(
+				`
 				SELECT * FROM inventory_transactions
 				WHERE sku = ? AND location = ?
 				ORDER BY timestamp DESC
 				LIMIT 30
-			`, [sku, location])
+			`,
+				[sku, location]
+			)
 
 			return result.toArray()
 		} catch {
@@ -349,18 +365,25 @@ export class InventoryService {
 		}
 	}
 
-	private async getSalesVelocity(sku: string, location: string, sqlStorage: SqlStorage): Promise<number> {
+	private async getSalesVelocity(
+		sku: string,
+		location: string,
+		sqlStorage: SqlStorage
+	): Promise<number> {
 		try {
-			const result = await sqlStorage.exec(`
+			const result = await sqlStorage.exec(
+				`
 				SELECT AVG(quantity) as avg_sales
 				FROM inventory_transactions
 				WHERE sku = ? AND operation = 'decrement'
 				AND location = ?
 				AND timestamp > datetime('now', '-7 days')
-			`, [sku, location])
+			`,
+				[sku, location]
+			)
 
 			const avgSales = result.toArray()[0]?.avg_sales
-		return typeof avgSales === 'number' ? avgSales : Number(avgSales) || 0
+			return typeof avgSales === 'number' ? avgSales : Number(avgSales) || 0
 		} catch {
 			return 0
 		}

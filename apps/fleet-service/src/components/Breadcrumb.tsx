@@ -27,7 +27,14 @@ export const Breadcrumb: FC<BreadcrumbProps> = ({ path, tenantId }) => {
 		<div class="breadcrumb">
 			<nav class="flex flex-between flex-center">
 				<div class="flex flex-center">
-					<a href={getTenantUrl('/')} class="tech-badge" style="margin-right: 8px;" title="View all locations for this tenant">{rootLabel}</a>
+					<a
+						href={getTenantUrl('/')}
+						class="tech-badge"
+						style="margin-right: 8px;"
+						title="View all locations for this tenant"
+					>
+						{rootLabel}
+					</a>
 					{segments.map((segment, index) => {
 						const segmentPath = '/' + segments.slice(0, index + 1).join('/')
 						const isLastSegment = index === segments.length - 1
@@ -39,7 +46,11 @@ export const Breadcrumb: FC<BreadcrumbProps> = ({ path, tenantId }) => {
 									href={getTenantUrl(segmentPath)}
 									class="tech-badge"
 									style="margin-right: 8px;"
-									title={isLastSegment ? `Current location: ${segmentLabel}` : `Navigate to ${segmentLabel}`}
+									title={
+										isLastSegment
+											? `Current location: ${segmentLabel}`
+											: `Navigate to ${segmentLabel}`
+									}
 								>
 									{segmentLabel}
 								</a>
@@ -51,8 +62,7 @@ export const Breadcrumb: FC<BreadcrumbProps> = ({ path, tenantId }) => {
 					<span class="performance-indicator">
 						{isAtRoot
 							? `Tenant: ${tenantId || 'demo'} • Locations Overview`
-							: `Depth: ${segments.length} • Location`
-						}
+							: `Depth: ${segments.length} • Location`}
 					</span>
 				</div>
 			</nav>

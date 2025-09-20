@@ -1,15 +1,24 @@
-// Type definitions for Durable Objects are available globally
-import { createAgentSDK, type RealAgentSDK } from '../services/real-agent-sdk'
-import { BaseFleetManager, type Env, type InventoryUpdate, type FleetMessage, type StoredMessage, StockUpdateSchema, AgentNameSchema, InventoryError } from '../services/base-fleet-manager'
-import { AIService, type InventoryInsights, type DemandForecast } from '../services/ai-service'
+import { AIService } from '../services/ai-service'
+import {
+	AgentNameSchema,
+	BaseFleetManager,
+	InventoryError,
+	StockUpdateSchema,
+} from '../services/base-fleet-manager'
 import { InventoryService } from '../services/inventory-service'
 import { QueueService } from '../services/queue-service'
+import { createAgentSDK } from '../services/real-agent-sdk'
 import { VectorizeService } from '../services/vectorize-service'
 import { WorkflowService } from '../services/workflow-service'
 
-// All types and interfaces are now imported from base-fleet-manager.ts
-
-// All interfaces are now imported from base-fleet-manager.ts and ai-service.ts
+import type { DemandForecast, InventoryInsights } from '../services/ai-service'
+import type {
+	Env,
+	FleetMessage,
+	InventoryUpdate,
+	StoredMessage,
+} from '../services/base-fleet-manager'
+import type { RealAgentSDK } from '../services/real-agent-sdk'
 
 // Enhanced InventoryAgent using service architecture
 export class InventoryAgent extends BaseFleetManager {
@@ -26,14 +35,11 @@ export class InventoryAgent extends BaseFleetManager {
 		messagesToday: 0,
 		actionsExecuted: 0,
 		successfulActions: 0,
-		successRate: 0.0
+		successRate: 0.0,
 	}
 
-	constructor(
-		ctx: DurableObjectState,
-		env: Env
-	) {
-		super(ctx, env)
+	constructor(state: DurableObjectState, env: Env) {
+		super(state, env)
 		console.log('InventoryAgent constructor called')
 
 		// Initialize real AgentSDK (will be updated when tenant is determined)
@@ -47,8 +53,7 @@ export class InventoryAgent extends BaseFleetManager {
 		this.workflowService = new WorkflowService(env)
 
 		// Override the initialization to include chat history loading
-		// eslint-disable-next-line @typescript-eslint/no-floating-promises
-		ctx.blockConcurrencyWhile(async () => {
+		void state.blockConcurrencyWhile(async () => {
 			console.log('[INIT] Initializing InventoryAgent from storage...')
 			// Load state for the default path - will be updated when fetch() sets currentPath
 			await this.loadStateFromStorage()
@@ -72,14 +77,6 @@ export class InventoryAgent extends BaseFleetManager {
 		console.log('InventoryAgent constructor completed')
 	}
 
-	// State loading is now handled by BaseFleetManager
-
-	// Error handling and validation are now handled by BaseFleetManager
-
-	// Caching methods are now handled by BaseFleetManager
-
-	// Schema initialization is now handled by BaseFleetManager
-
 	// Update tenant and path for this agent instance
 	private async updateTenantAndPath(tenantId: string, path: string) {
 		this.tenantId = tenantId
@@ -92,15 +89,22 @@ export class InventoryAgent extends BaseFleetManager {
 	}
 
 	// Real AI integration using AgentSDK
-	async aiRun(model: string, messages: Array<{ role: string; content: string }>): Promise<{ response: string }> {
+	async aiRun(
+		model: string,
+		messages: Array<{ role: string; content: string }>
+	): Promise<{ response: string }> {
 		try {
 			const result = await this.agentSDK.ai.run(model, messages)
 			return { response: result.response }
-			} catch (error) {
-				console.error('AI call failed:', error)
-				// Fallback to mock for development if AI binding fails
-				console.warn('Falling back to mock AI response due to error')
-			return { response: JSON.stringify(this.generateMockAIResponse(messages[messages.length - 1]?.content || '')) }
+		} catch (error) {
+			console.error('AI call failed:', error)
+			// Fallback to mock for development if AI binding fails
+			console.warn('Falling back to mock AI response due to error')
+			return {
+				response: JSON.stringify(
+					this.generateMockAIResponse(messages[messages.length - 1]?.content || '')
+				),
+			}
 		}
 	}
 
@@ -126,8 +130,8 @@ export class InventoryAgent extends BaseFleetManager {
 		} catch (error) {
 			console.error('Scheduling failed:', error)
 			// Fallback to immediate execution if scheduling fails
-				console.log(`Executing workflow immediately: ${name}`, data)
-				await this.executeWorkflow(name, data)
+			console.log(`Executing workflow immediately: ${name}`, data)
+			await this.executeWorkflow(name, data)
 		}
 	}
 
@@ -151,7 +155,7 @@ export class InventoryAgent extends BaseFleetManager {
 			console.log(`Executing reorder workflow: ${data.quantity} units of ${data.sku}`)
 
 			// Simulate reorder process
-			await new Promise(resolve => setTimeout(resolve, 2000))
+			await new Promise((resolve) => setTimeout(resolve, 2000))
 
 			// Update inventory with reorder
 			await this.processStockUpdate({
@@ -159,13 +163,13 @@ export class InventoryAgent extends BaseFleetManager {
 				quantity: data.quantity,
 				operation: 'increment',
 				timestamp: new Date().toISOString(),
-				location: this.currentPath
+				location: this.currentPath,
 			})
 
 			this.broadcastToWebSockets({
 				type: 'message',
 				from: 'Reorder System',
-				content: `✅ Reorder completed: ${data.quantity} units of ${data.sku} ordered with ${data.urgency} priority`
+				content: `✅ Reorder completed: ${data.quantity} units of ${data.sku} ordered with ${data.urgency} priority`,
 			})
 		} catch (error) {
 			console.error('Reorder workflow failed:', error)
@@ -181,16 +185,18 @@ export class InventoryAgent extends BaseFleetManager {
 				urgency: 'medium',
 				leadTimeMs: 7 * 24 * 60 * 60 * 1000,
 				reasoning: 'Current stock below threshold. Historical data suggests moderate demand.',
-				confidence: 0.8
+				confidence: 0.8,
 			}
 		} else if (prompt.includes('forecast')) {
-			return [{
-				sku: 'MOCK-SKU',
-				predictedDemand: 30,
-				confidence: 0.75,
-				trendDirection: 'stable',
-				reasoning: 'Steady demand pattern observed over past 30 days'
-			}]
+			return [
+				{
+					sku: 'MOCK-SKU',
+					predictedDemand: 30,
+					confidence: 0.75,
+					trendDirection: 'stable',
+					reasoning: 'Steady demand pattern observed over past 30 days',
+				},
+			]
 		}
 		return { message: 'Mock AI response for POC demonstration' }
 	}
@@ -223,7 +229,8 @@ export class InventoryAgent extends BaseFleetManager {
 			}
 
 			// Periodically clean up old messages (only do this occasionally to avoid performance impact)
-			if (Math.random() < 0.01) { // 1% chance on each request
+			if (Math.random() < 0.01) {
+				// 1% chance on each request
 				this.cleanupOldMessages()
 			}
 
@@ -233,28 +240,33 @@ export class InventoryAgent extends BaseFleetManager {
 			}
 
 			// Handle HTTP requests
-			console.log(`FleetManager handling request: ${request.method} ${url.pathname} from path: ${this.currentPath}`)
+			console.log(
+				`FleetManager handling request: ${request.method} ${url.pathname} from path: ${this.currentPath}`
+			)
 
 			switch (url.pathname) {
-			case '/state':
-				return this.getState()
-			case '/debug/db': {
-				// Check what's actually in the database
-				const dbState = this.sqlStorage.exec(`
+				case '/state':
+					return this.getState()
+				case '/debug/db': {
+					// Check what's actually in the database
+					const dbState = this.sqlStorage.exec(
+						`
 					SELECT * FROM fleet_state WHERE id = ?
-				`, this.currentPath)
-				const dbResult = dbState.toArray()[0] as any
-				return Response.json({
-					currentPath: this.currentPath,
-					inMemoryAgents: Array.from(this.state.agents),
-					inMemoryCounter: this.state.counter,
-					dbState: dbResult || null,
-					dbAgents: dbResult ? JSON.parse(dbResult.agents || '[]') : null,
-					stateLoaded: this.stateLoaded
-				})
-			}
-			case '/increment':
-				return this.increment()
+				`,
+						this.currentPath
+					)
+					const dbResult = dbState.toArray()[0] as any
+					return Response.json({
+						currentPath: this.currentPath,
+						inMemoryAgents: Array.from(this.state.agents),
+						inMemoryCounter: this.state.counter,
+						dbState: dbResult || null,
+						dbAgents: dbResult ? JSON.parse(dbResult.agents || '[]') : null,
+						stateLoaded: this.stateLoaded,
+					})
+				}
+				case '/increment':
+					return this.increment()
 				case '/message':
 					return this.handleMessage(request)
 				case '/messages':
@@ -290,13 +302,16 @@ export class InventoryAgent extends BaseFleetManager {
 
 	private async handleWebSocket(_request: Request): Promise<Response> {
 		const webSocketPair = new WebSocketPair()
-		const [client, server] = Object.values(webSocketPair)
+		const client = webSocketPair[0]
+		const server = webSocketPair[1]
 
 		// Accept the WebSocket connection using Hibernation API
 		this.ctx.acceptWebSocket(server)
 		this.state.websockets.add(server)
 
-		console.log(`WebSocket connected to path: ${this.currentPath}, agents: ${Array.from(this.state.agents).join(', ')}, counter: ${this.state.counter}`)
+		console.log(
+			`WebSocket connected to path: ${this.currentPath}, agents: ${Array.from(this.state.agents).join(', ')}, counter: ${this.state.counter}`
+		)
 
 		// ✅ Send current state to new client (only if initialization is complete)
 		if (this.initializationComplete) {
@@ -317,6 +332,7 @@ export class InventoryAgent extends BaseFleetManager {
 
 		return new Response(null, {
 			status: 101,
+			// @ts-ignore - webSocket is a valid property for WebSocket upgrade responses
 			webSocket: client,
 		})
 	}
@@ -325,7 +341,11 @@ export class InventoryAgent extends BaseFleetManager {
 	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
 		try {
 			const data = JSON.parse(message as string) as FleetMessage
-			console.log(`[DO ${this.currentPath}] Received WebSocket message:`, data.type, new Date().toISOString())
+			console.log(
+				`[DO ${this.currentPath}] Received WebSocket message:`,
+				data.type,
+				new Date().toISOString()
+			)
 
 			switch (data.type) {
 				case 'increment':
@@ -338,14 +358,20 @@ export class InventoryAgent extends BaseFleetManager {
 					await this.deleteAgent(String((data as any).name))
 					break
 				case 'directMessage':
-					await this.sendDirectMessage(String((data as any).agentName), String((data as any).message))
+					await this.sendDirectMessage(
+						String((data as any).agentName),
+						String((data as any).message)
+					)
 					break
 				case 'broadcast':
 					await this.broadcastMessage(String((data as any).message))
 					break
 				case 'ping':
 					// Respond to ping with pong to keep connection alive
-					console.log(`[DO ${this.currentPath}] Responding to ping with pong and state`, new Date().toISOString())
+					console.log(
+						`[DO ${this.currentPath}] Responding to ping with pong and state`,
+						new Date().toISOString()
+					)
 					this.sendToWebSocket(ws, { type: 'pong' })
 					// Also send current state to ensure UI is up to date
 					this.sendToWebSocket(ws, {
@@ -378,7 +404,7 @@ export class InventoryAgent extends BaseFleetManager {
 					this.sendToWebSocket(ws, {
 						type: 'message',
 						from: 'system',
-						content: 'Persistence test completed. Check console logs for results.'
+						content: 'Persistence test completed. Check console logs for results.',
 					})
 					break
 				case 'testPersistence25s':
@@ -387,7 +413,7 @@ export class InventoryAgent extends BaseFleetManager {
 					this.sendToWebSocket(ws, {
 						type: 'message',
 						from: 'system',
-						content: 'Starting 25-second persistence test. Check console logs for results.'
+						content: 'Starting 25-second persistence test. Check console logs for results.',
 					})
 					// Run test in background
 					// eslint-disable-next-line @typescript-eslint/no-floating-promises
@@ -408,18 +434,27 @@ export class InventoryAgent extends BaseFleetManager {
 	}
 
 	// Handle WebSocket close
-	async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
-		console.log(`[DO ${this.currentPath}] WebSocket closed: ${code} ${reason} (clean: ${wasClean}) at ${new Date().toISOString()}. Remaining connections: ${this.state.websockets.size - 1}`)
+	async webSocketClose(
+		ws: WebSocket,
+		code: number,
+		reason: string,
+		wasClean: boolean
+	): Promise<void> {
+		console.log(
+			`[DO ${this.currentPath}] WebSocket closed: ${code} ${reason} (clean: ${wasClean}) at ${new Date().toISOString()}. Remaining connections: ${this.state.websockets.size - 1}`
+		)
 		this.state.websockets.delete(ws)
 	}
 
 	// Handle WebSocket errors
 	async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
 		console.error('WebSocket error:', error)
-		console.log(`WebSocket error for path: ${this.currentPath}. Removing connection. Remaining: ${this.state.websockets.size - 1}`)
+		console.log(
+			`WebSocket error for path: ${this.currentPath}. Removing connection. Remaining: ${this.state.websockets.size - 1}`
+		)
 		this.state.websockets.delete(ws)
 		// Close the connection with error code
-		ws.close(1011, "Internal error")
+		ws.close(1011, 'Internal error')
 	}
 
 	// Load state from SQLite storage
@@ -469,12 +504,17 @@ export class InventoryAgent extends BaseFleetManager {
 			this.cache.delete(`state:${this.currentPath}`)
 			this.cache.delete(`loaded:${this.currentPath}`)
 
-			console.log(`Agent "${trimmedName}" created successfully. Current agents: ${Array.from(this.state.agents).join(', ')}`)
+			console.log(
+				`Agent "${trimmedName}" created successfully. Current agents: ${Array.from(this.state.agents).join(', ')}`
+			)
 
 			// Verify the agent was saved by reading it back
-		const verifyResult = this.sqlStorage.exec(`
+			const verifyResult = this.sqlStorage.exec(
+				`
 			SELECT agents FROM fleet_state WHERE id = ?
-		`, this.currentPath)
+		`,
+				this.currentPath
+			)
 			const savedAgents = verifyResult.toArray()[0] as any
 			console.log(`Verification - saved agents in DB: ${savedAgents?.agents || 'none'}`)
 
@@ -515,14 +555,17 @@ export class InventoryAgent extends BaseFleetManager {
 		try {
 			// First, recursively delete the child agent's entire subtree
 			const encodedName = encodeURIComponent(name)
-			const childPath = this.currentPath === '/' ? `/${encodedName}` : `${this.currentPath}/${encodedName}`
+			const childPath =
+				this.currentPath === '/' ? `/${encodedName}` : `${this.currentPath}/${encodedName}`
 			const childId = this.env.FLEET_MANAGER.idFromName(childPath)
 			const childStub = this.env.FLEET_MANAGER.get(childId)
 
 			// Tell the child to delete itself and all its descendants
-			await childStub.fetch(new Request('http://internal/delete-subtree', {
-				method: 'POST'
-			}))
+			await childStub.fetch(
+				new Request('http://internal/delete-subtree', {
+					method: 'POST',
+				})
+			)
 
 			// Remove from our local state
 			this.state.agents.delete(name)
@@ -565,29 +608,27 @@ export class InventoryAgent extends BaseFleetManager {
 
 		try {
 			// Store the outgoing message in memory
-			this.storeMessage(
-				this.currentPath || 'root',
-				agentName,
-				message,
-				'direct'
-			)
+			this.storeMessage(this.currentPath || 'root', agentName, message, 'direct')
 
 			// Get the child agent's DO and send the message
 			const encodedName = encodeURIComponent(agentName)
-			const childPath = this.currentPath === '/' ? `/${encodedName}` : `${this.currentPath}/${encodedName}`
+			const childPath =
+				this.currentPath === '/' ? `/${encodedName}` : `${this.currentPath}/${encodedName}`
 			const childId = this.env.FLEET_MANAGER.idFromName(childPath)
 			const childStub = this.env.FLEET_MANAGER.get(childId)
 
 			// Send message to child DO
-			await childStub.fetch(new Request('http://internal/message', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					from: this.currentPath || 'root',
-					content: message,
-					type: 'direct'
+			await childStub.fetch(
+				new Request('http://internal/message', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						from: this.currentPath || 'root',
+						content: message,
+						type: 'direct',
+					}),
 				})
-			}))
+			)
 
 			const systemMessage = `Message sent to ${agentName}: ${message}`
 
@@ -614,7 +655,9 @@ export class InventoryAgent extends BaseFleetManager {
 
 	// Broadcast message to all child agents
 	private async broadcastMessage(message: string): Promise<void> {
-		console.log(`Broadcasting message "${message}" from path: ${this.currentPath} to agents: ${Array.from(this.state.agents).join(', ')}`)
+		console.log(
+			`Broadcasting message "${message}" from path: ${this.currentPath} to agents: ${Array.from(this.state.agents).join(', ')}`
+		)
 
 		// Store the broadcast message in memory
 		this.storeMessage(
@@ -628,19 +671,22 @@ export class InventoryAgent extends BaseFleetManager {
 		const promises = Array.from(this.state.agents).map(async (agentName) => {
 			try {
 				const encodedName = encodeURIComponent(agentName)
-				const childPath = this.currentPath === '/' ? `/${encodedName}` : `${this.currentPath}/${encodedName}`
+				const childPath =
+					this.currentPath === '/' ? `/${encodedName}` : `${this.currentPath}/${encodedName}`
 				const childId = this.env.FLEET_MANAGER.idFromName(childPath)
 				const childStub = this.env.FLEET_MANAGER.get(childId)
 
-				await childStub.fetch(new Request('http://internal/message', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						from: this.currentPath || 'root',
-						content: message,
-						type: 'broadcast'
+				await childStub.fetch(
+					new Request('http://internal/message', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							from: this.currentPath || 'root',
+							content: message,
+							type: 'broadcast',
+						}),
 					})
-				}))
+				)
 			} catch (error) {
 				console.error(`Failed to send broadcast to ${agentName}:`, error)
 			}
@@ -660,7 +706,7 @@ export class InventoryAgent extends BaseFleetManager {
 	// Get current state with caching
 	private async getState(): Promise<Response> {
 		const cacheKey = `state:${this.currentPath}`
-		const cached = this.getCached<{counter: number; agents: string[]}>(cacheKey)
+		const cached = this.getCached<{ counter: number; agents: string[] }>(cacheKey)
 
 		if (cached) {
 			return Response.json(cached)
@@ -686,7 +732,7 @@ export class InventoryAgent extends BaseFleetManager {
 	// Handle incoming messages from other DOs
 	private async handleMessage(request: Request): Promise<Response> {
 		try {
-			const messageData = await request.json() as {
+			const messageData = (await request.json()) as {
 				from: string
 				content: string
 				type: 'direct' | 'broadcast'
@@ -720,13 +766,16 @@ export class InventoryAgent extends BaseFleetManager {
 			const deletePromises = Array.from(this.state.agents).map(async (agentName) => {
 				try {
 					const encodedName = encodeURIComponent(agentName)
-					const childPath = this.currentPath === '/' ? `/${encodedName}` : `${this.currentPath}/${encodedName}`
+					const childPath =
+						this.currentPath === '/' ? `/${encodedName}` : `${this.currentPath}/${encodedName}`
 					const childId = this.env.FLEET_MANAGER.idFromName(childPath)
 					const childStub = this.env.FLEET_MANAGER.get(childId)
 
-					await childStub.fetch(new Request('http://internal/delete-subtree', {
-						method: 'POST'
-					}))
+					await childStub.fetch(
+						new Request('http://internal/delete-subtree', {
+							method: 'POST',
+						})
+					)
 				} catch (error) {
 					console.error(`Failed to delete child ${agentName}:`, error)
 				}
@@ -766,7 +815,6 @@ export class InventoryAgent extends BaseFleetManager {
 
 	// Removed isValidAgentName method - now using Zod validation
 
-
 	// Store a message in SQLite
 	// storeMessage is now handled by BaseFleetManager
 
@@ -779,10 +827,13 @@ export class InventoryAgent extends BaseFleetManager {
 			// Check if sqlStorage is available
 			if (!this.sqlStorage) {
 				console.error('SQLite storage not available')
-				return Response.json({
-					error: 'Database not available',
-					details: 'SQLite storage not initialized'
-				}, { status: 500 })
+				return Response.json(
+					{
+						error: 'Database not available',
+						details: 'SQLite storage not initialized',
+					},
+					{ status: 500 }
+				)
 			}
 
 			const url = new URL(request.url)
@@ -816,34 +867,43 @@ export class InventoryAgent extends BaseFleetManager {
 				}
 			} catch (tableError) {
 				console.error('Error checking/creating table:', tableError)
-				return Response.json({
-					error: 'Database table initialization failed',
-					details: tableError instanceof Error ? tableError.message : 'Unknown error'
-				}, { status: 500 })
+				return Response.json(
+					{
+						error: 'Database table initialization failed',
+						details: tableError instanceof Error ? tableError.message : 'Unknown error',
+					},
+					{ status: 500 }
+				)
 			}
 
 			// Get total count
-		const countResult = this.sqlStorage.exec(`
+			const countResult = this.sqlStorage.exec(
+				`
 			SELECT COUNT(*) as total FROM stored_messages WHERE location = ?
-		`, this.currentPath)
+		`,
+				this.currentPath
+			)
 			const totalCount = (countResult.toArray()[0] as any)?.total || 0
 			console.log('Total message count:', totalCount)
 
 			// Get paginated messages
-		const messagesResult = this.sqlStorage.exec(`
+			const messagesResult = this.sqlStorage.exec(
+				`
 			SELECT * FROM stored_messages
 			WHERE location = ?
 			ORDER BY timestamp DESC
 			LIMIT ${limit} OFFSET ${offset}
-		`, this.currentPath)
+		`,
+				this.currentPath
+			)
 
-			const messages = (messagesResult.toArray() as any[]).map(msg => ({
+			const messages = (messagesResult.toArray() as any[]).map((msg) => ({
 				id: msg.id,
 				timestamp: msg.timestamp,
 				from_agent: msg.from_agent,
 				to_agent: msg.to_agent,
 				content: msg.content,
-				message_type: msg.message_type
+				message_type: msg.message_type,
 			}))
 
 			console.log(`Found ${messages.length} messages`)
@@ -851,16 +911,19 @@ export class InventoryAgent extends BaseFleetManager {
 			return Response.json({
 				messages: messages.reverse(), // Return in chronological order
 				totalCount,
-				hasMore: offset + limit < totalCount
+				hasMore: offset + limit < totalCount,
 			})
 		} catch (error) {
 			console.error('Failed to retrieve messages:', error)
 			console.error('Error details:', error instanceof Error ? error.message : 'Unknown error')
 			console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
-			return Response.json({
-				error: 'Failed to retrieve messages',
-				details: error instanceof Error ? error.message : 'Unknown error'
-			}, { status: 500 })
+			return Response.json(
+				{
+					error: 'Failed to retrieve messages',
+					details: error instanceof Error ? error.message : 'Unknown error',
+				},
+				{ status: 500 }
+			)
 		}
 	}
 
@@ -878,20 +941,23 @@ export class InventoryAgent extends BaseFleetManager {
 				counter: row.counter,
 				agents: JSON.parse(row.agents || '[]'),
 				agentType: row.agent_type,
-				lastUpdated: new Date(row.updated_at * 1000).toISOString()
+				lastUpdated: new Date(row.updated_at * 1000).toISOString(),
 			}))
 
 			return Response.json({
 				currentPath: this.currentPath,
 				currentStateAgents: Array.from(this.state.agents),
 				allLocations: locations,
-				timestamp: new Date().toISOString()
+				timestamp: new Date().toISOString(),
 			})
 		} catch (error) {
-			return Response.json({
-				error: 'Failed to get debug info',
-				details: error instanceof Error ? error.message : 'Unknown error'
-			}, { status: 500 })
+			return Response.json(
+				{
+					error: 'Failed to get debug info',
+					details: error instanceof Error ? error.message : 'Unknown error',
+				},
+				{ status: 500 }
+			)
 		}
 	}
 
@@ -902,11 +968,15 @@ export class InventoryAgent extends BaseFleetManager {
 			cutoffDate.setDate(cutoffDate.getDate() - retentionDays)
 			const cutoffTimestamp = cutoffDate.toISOString()
 
-		// Delete old messages from SQLite (timestamp is stored as TEXT in ISO format)
-		const deleteResult = this.sqlStorage.exec(`
+			// Delete old messages from SQLite (timestamp is stored as TEXT in ISO format)
+			const deleteResult = this.sqlStorage.exec(
+				`
 			DELETE FROM stored_messages
 			WHERE location = ? AND timestamp < ?
-		`, this.currentPath, cutoffTimestamp)
+		`,
+				this.currentPath,
+				cutoffTimestamp
+			)
 
 			const deletedCount = (deleteResult as any).meta?.changes || 0
 			if (deletedCount > 0) {
@@ -914,10 +984,9 @@ export class InventoryAgent extends BaseFleetManager {
 			}
 
 			// Also clean up in-memory cache
-			this.state.messages = this.state.messages.filter(msg =>
-				new Date(msg.timestamp) >= cutoffDate
+			this.state.messages = this.state.messages.filter(
+				(msg) => new Date(msg.timestamp) >= cutoffDate
 			)
-
 		} catch (error) {
 			console.error('Failed to cleanup old messages:', error)
 		}
@@ -934,11 +1003,12 @@ export class InventoryAgent extends BaseFleetManager {
 
 			// Send each message as a separate WebSocket message to maintain the chat flow
 			for (const msg of recentMessages) {
-				const fromDisplay = msg.message_type === 'direct'
-					? `📨 ${msg.from_agent}`
-					: msg.message_type === 'broadcast'
-					? `📢 ${msg.from_agent}`
-					: msg.from_agent
+				const fromDisplay =
+					msg.message_type === 'direct'
+						? `📨 ${msg.from_agent}`
+						: msg.message_type === 'broadcast'
+							? `📢 ${msg.from_agent}`
+							: msg.from_agent
 
 				this.sendToWebSocket(ws, {
 					type: 'message',
@@ -947,7 +1017,7 @@ export class InventoryAgent extends BaseFleetManager {
 				})
 
 				// Small delay to prevent overwhelming the client
-				await new Promise(resolve => setTimeout(resolve, 10))
+				await new Promise((resolve) => setTimeout(resolve, 10))
 			}
 
 			console.log(`Sent ${recentMessages.length} historical messages to client`)
@@ -970,12 +1040,15 @@ export class InventoryAgent extends BaseFleetManager {
 			}
 
 			// Gather historical data from agent's SQL database
-			const salesHistory = await this.sql(`
+			const salesHistory = await this.sql(
+				`
 				SELECT * FROM inventory_transactions
 				WHERE sku = ? AND location = ?
 				ORDER BY timestamp DESC
 				LIMIT 30
-			`, [sku, this.currentPath])
+			`,
+				[sku, this.currentPath]
+			)
 
 			// Get seasonal patterns and trends
 			const seasonalData = await this.getSeasonalityData(sku)
@@ -992,14 +1065,22 @@ export class InventoryAgent extends BaseFleetManager {
 			)
 
 			// Store analysis in agent's database
-			await this.sql(`
+			await this.sql(
+				`
 				INSERT INTO inventory_analysis (sku, location, analysis, confidence, timestamp)
 				VALUES (?, ?, ?, ?, ?)
-			`, [sku, this.currentPath, JSON.stringify(insights), insights.confidence, new Date().toISOString()])
+			`,
+				[
+					sku,
+					this.currentPath,
+					JSON.stringify(insights),
+					insights.confidence,
+					new Date().toISOString(),
+				]
+			)
 
 			console.log(`AI Analysis for ${sku}:`, insights)
 			return insights
-
 		} catch (error) {
 			console.error(`Failed to analyze inventory trends for ${sku}:`, error)
 			// Return conservative fallback analysis
@@ -1011,7 +1092,7 @@ export class InventoryAgent extends BaseFleetManager {
 				urgency: 'medium',
 				leadTimeMs: 7 * 24 * 60 * 60 * 1000, // 7 days
 				reasoning: 'Fallback analysis due to AI processing error',
-				confidence: 0.5
+				confidence: 0.5,
 			}
 		}
 	}
@@ -1034,7 +1115,7 @@ export class InventoryAgent extends BaseFleetManager {
 						recommendedQuantity: insights.reorderQuantity,
 						urgency: insights.urgency,
 						reasoning: insights.reasoning,
-						estimatedCost: insights.reorderQuantity * 10 // Mock cost calculation
+						estimatedCost: insights.reorderQuantity * 10, // Mock cost calculation
 					})
 
 					if (!approved) {
@@ -1044,14 +1125,18 @@ export class InventoryAgent extends BaseFleetManager {
 				}
 
 				// Schedule the reorder workflow
-				await this.schedule('reorderWorkflow', {
-					sku,
-					quantity: insights.reorderQuantity,
-					urgency: insights.urgency,
-					reasoning: insights.reasoning
-				}, {
-					delay: insights.urgency === 'critical' ? 0 : insights.leadTimeMs / 10 // Immediate for critical, otherwise delayed
-				})
+				await this.schedule(
+					'reorderWorkflow',
+					{
+						sku,
+						quantity: insights.reorderQuantity,
+						urgency: insights.urgency,
+						reasoning: insights.reasoning,
+					},
+					{
+						delay: insights.urgency === 'critical' ? 0 : insights.leadTimeMs / 10, // Immediate for critical, otherwise delayed
+					}
+				)
 
 				// Propagate reorder decision to parent agents
 				await this.propagateReorderDecision(sku, insights)
@@ -1060,16 +1145,18 @@ export class InventoryAgent extends BaseFleetManager {
 				this.broadcastToWebSockets({
 					type: 'message',
 					from: 'AI Inventory Agent',
-					content: `🤖 Auto-reorder initiated: ${insights.reorderQuantity} units of ${sku} (${insights.urgency} priority)`
+					content: `🤖 Auto-reorder initiated: ${insights.reorderQuantity} units of ${sku} (${insights.urgency} priority)`,
 				})
 			}
 
 			// Store decision in audit trail
-			await this.sql(`
+			await this.sql(
+				`
 				INSERT INTO inventory_decisions (sku, location, decision_type, reasoning, timestamp)
 				VALUES (?, ?, ?, ?, ?)
-			`, [sku, this.currentPath, 'reorder_analysis', insights.reasoning, new Date().toISOString()])
-
+			`,
+				[sku, this.currentPath, 'reorder_analysis', insights.reasoning, new Date().toISOString()]
+			)
 		} catch (error) {
 			console.error(`Failed to process low stock alert for ${sku}:`, error)
 		}
@@ -1082,15 +1169,14 @@ export class InventoryAgent extends BaseFleetManager {
 			this.broadcastToWebSockets({
 				type: 'message',
 				from: 'System',
-				content: `🚨 APPROVAL NEEDED: ${decision.type} for ${decision.sku} - ${decision.recommendedQuantity} units (${decision.urgency} priority). Estimated cost: $${decision.estimatedCost}. Reason: ${decision.reasoning}`
+				content: `🚨 APPROVAL NEEDED: ${decision.type} for ${decision.sku} - ${decision.recommendedQuantity} units (${decision.urgency} priority). Estimated cost: $${decision.estimatedCost}. Reason: ${decision.reasoning}`,
 			})
 
 			// For POC, auto-approve after short delay (in production, this would wait for human input)
-			await new Promise(resolve => setTimeout(resolve, 2000))
+			await new Promise((resolve) => setTimeout(resolve, 2000))
 
 			console.log(`Auto-approved ${decision.type} for ${decision.sku} (POC mode)`)
 			return true
-
 		} catch (error) {
 			console.error('Failed to request human approval:', error)
 			return false // Fail safe
@@ -1106,7 +1192,7 @@ export class InventoryAgent extends BaseFleetManager {
 			const inventoryData = Array.from(this.state.inventory.entries()).map(([sku, item]) => ({
 				sku,
 				currentStock: item.currentStock,
-				lowThreshold: item.lowStockThreshold
+				lowThreshold: item.lowStockThreshold,
 			}))
 
 			if (inventoryData.length === 0) {
@@ -1124,10 +1210,10 @@ export class InventoryAgent extends BaseFleetManager {
 						predictedDemand: { type: 'number', minimum: 0 },
 						confidence: { type: 'number', minimum: 0, maximum: 1 },
 						trendDirection: { type: 'string', enum: ['increasing', 'decreasing', 'stable'] },
-						reasoning: { type: 'string' }
+						reasoning: { type: 'string' },
 					},
-					required: ['sku', 'predictedDemand', 'confidence', 'trendDirection', 'reasoning']
-				}
+					required: ['sku', 'predictedDemand', 'confidence', 'trendDirection', 'reasoning'],
+				},
 			}
 
 			// AI-powered demand forecasting
@@ -1142,14 +1228,15 @@ DATE: ${new Date().toISOString()}
 For each SKU, predict demand and provide reasoning. Respond with JSON array matching the exact schema provided.`
 
 			const aiResponse = await this.aiRun('@cf/meta/llama-3.1-8b-instruct', [
-					{
-						role: 'system',
-						content: 'You are a demand forecasting expert. Always respond with valid JSON array matching the exact schema provided.'
-					},
-					{
-						role: 'user',
-						content: forecastPrompt
-					}
+				{
+					role: 'system',
+					content:
+						'You are a demand forecasting expert. Always respond with valid JSON array matching the exact schema provided.',
+				},
+				{
+					role: 'user',
+					content: forecastPrompt,
+				},
 			])
 
 			const forecasts = JSON.parse(aiResponse.response) as DemandForecast[]
@@ -1157,18 +1244,21 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 			// Store forecasts and trigger actions
 			for (const forecast of forecasts) {
 				// Store in database
-				await this.sql(`
+				await this.sql(
+					`
 					INSERT INTO demand_forecasts (sku, location, predicted_demand, confidence, trend_direction, reasoning, forecast_date)
 					VALUES (?, ?, ?, ?, ?, ?, ?)
-				`, [
-					forecast.sku,
-					this.currentPath,
-					forecast.predictedDemand,
-					forecast.confidence,
-					forecast.trendDirection,
-					forecast.reasoning,
-					new Date().toISOString()
-				])
+				`,
+					[
+						forecast.sku,
+						this.currentPath,
+						forecast.predictedDemand,
+						forecast.confidence,
+						forecast.trendDirection,
+						forecast.reasoning,
+						new Date().toISOString(),
+					]
+				)
 
 				// Check if forecast indicates potential stockout
 				const currentItem = this.state.inventory.get(forecast.sku)
@@ -1181,11 +1271,10 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 			this.broadcastToWebSockets({
 				type: 'message',
 				from: 'AI Forecast Engine',
-				content: `📊 30-day demand forecast complete: ${forecasts.length} SKUs analyzed. High-demand items: ${forecasts.filter(f => f.trendDirection === 'increasing').length}`
+				content: `📊 30-day demand forecast complete: ${forecasts.length} SKUs analyzed. High-demand items: ${forecasts.filter((f) => f.trendDirection === 'increasing').length}`,
 			})
 
 			console.log(`Demand forecast completed for ${forecasts.length} SKUs`)
-
 		} catch (error) {
 			console.error('Failed to run demand forecast workflow:', error)
 		}
@@ -1194,12 +1283,15 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 	// Helper methods for AI workflows
 	private async getSalesVelocity(sku: string): Promise<number> {
 		try {
-			const result = await this.sql(`
+			const result = await this.sql(
+				`
 				SELECT AVG(quantity) as avg_sales
 				FROM inventory_transactions
 				WHERE sku = ? AND operation = 'decrement'
 				AND timestamp > datetime('now', '-7 days')
-			`, [sku])
+			`,
+				[sku]
+			)
 
 			return result.results?.[0]?.avg_sales || 0
 		} catch {
@@ -1208,7 +1300,10 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 	}
 
 	// Vectorize integration for product similarity and recommendations
-	async getSimilarProducts(sku: string, limit: number = 5): Promise<Array<{sku: string; similarity: number; name: string}>> {
+	async getSimilarProducts(
+		sku: string,
+		limit: number = 5
+	): Promise<Array<{ sku: string; similarity: number; name: string }>> {
 		try {
 			if (!this.env.INVENTORY_VECTORS) {
 				console.warn('Vectorize not available, returning empty similar products')
@@ -1225,13 +1320,13 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 			const results = await this.env.INVENTORY_VECTORS.query(productEmbedding, {
 				topK: limit,
 				returnValues: true,
-				returnMetadata: true
+				returnMetadata: true,
 			})
 
 			return results.matches.map((match: any) => ({
 				sku: match.metadata?.sku || 'unknown',
 				similarity: match.score || 0,
-				name: match.metadata?.name || 'Unknown Product'
+				name: match.metadata?.name || 'Unknown Product',
 			}))
 		} catch (error) {
 			console.error('Failed to get similar products:', error)
@@ -1250,7 +1345,7 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 
 			// Use Workers AI to generate embedding
 			const embedding = await this.env.AI.run('@cf/baai/bge-base-en-v1.5', {
-				text: productDescription
+				text: productDescription,
 			})
 
 			return embedding.data[0]
@@ -1275,17 +1370,19 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 			if (!embedding) return
 
 			// Store in Vectorize
-			await this.env.INVENTORY_VECTORS.insert([{
-				id: sku,
-				values: embedding,
-				metadata: {
-					sku: item.sku,
-					name: item.name,
-					location: this.currentPath,
-					stock: item.currentStock,
-					threshold: item.lowStockThreshold
-				}
-			}])
+			await this.env.INVENTORY_VECTORS.insert([
+				{
+					id: sku,
+					values: embedding,
+					metadata: {
+						sku: item.sku,
+						name: item.name,
+						location: this.currentPath,
+						stock: item.currentStock,
+						threshold: item.lowStockThreshold,
+					},
+				},
+			])
 
 			console.log(`Stored embedding for product: ${sku}`)
 		} catch (error) {
@@ -1307,7 +1404,7 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 		if (this.currentPath === '/') return
 
 		try {
-			const pathParts = this.currentPath.split('/').filter(p => p.length > 0)
+			const pathParts = this.currentPath.split('/').filter((p) => p.length > 0)
 			if (pathParts.length === 0) return
 
 			const parentPath = pathParts.length === 1 ? '/' : '/' + pathParts.slice(0, -1).join('/')
@@ -1317,19 +1414,20 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 			const parentStub = this.env.FLEET_MANAGER.get(parentId)
 
 			// Send reorder decision to parent
-			await parentStub.fetch(new Request('http://internal/message', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					'x-fleet-path': parentPath
-				},
-				body: JSON.stringify({
-					from: this.currentPath,
-					content: `🤖 Child agent ${this.currentPath} initiated reorder: ${insights.reorderQuantity} units of ${sku} (${insights.urgency} priority)`,
-					type: 'system'
+			await parentStub.fetch(
+				new Request('http://internal/message', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'x-fleet-path': parentPath,
+					},
+					body: JSON.stringify({
+						from: this.currentPath,
+						content: `🤖 Child agent ${this.currentPath} initiated reorder: ${insights.reorderQuantity} units of ${sku} (${insights.urgency} priority)`,
+						type: 'system',
+					}),
 				})
-			}))
-
+			)
 		} catch (error) {
 			console.error('Failed to propagate reorder decision:', error)
 		}
@@ -1416,15 +1514,21 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 			const sku = url.searchParams.get('sku')
 
 			if (!sku) {
-				return Response.json({
-					error: 'SKU parameter required'
-				}, { status: 400 })
+				return Response.json(
+					{
+						error: 'SKU parameter required',
+					},
+					{ status: 400 }
+				)
 			}
 
 			if (!this.state.inventory.has(sku)) {
-				return Response.json({
-					error: `SKU ${sku} not found in inventory`
-				}, { status: 404 })
+				return Response.json(
+					{
+						error: `SKU ${sku} not found in inventory`,
+					},
+					{ status: 404 }
+				)
 			}
 
 			// Run AI analysis
@@ -1434,14 +1538,16 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 				sku,
 				location: this.currentPath,
 				insights,
-				timestamp: new Date().toISOString()
+				timestamp: new Date().toISOString(),
 			})
-
 		} catch (error) {
-			return Response.json({
-				error: 'AI analysis failed',
-				details: error instanceof Error ? error.message : 'Unknown error'
-			}, { status: 500 })
+			return Response.json(
+				{
+					error: 'AI analysis failed',
+					details: error instanceof Error ? error.message : 'Unknown error',
+				},
+				{ status: 500 }
+			)
 		}
 	}
 
@@ -1452,25 +1558,30 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 			await this.runDemandForecastWorkflow()
 
 			// Return recent forecasts from database
-			const forecasts = await this.sql(`
+			const forecasts = await this.sql(
+				`
 				SELECT * FROM demand_forecasts
 				WHERE location = ?
 				ORDER BY forecast_date DESC
 				LIMIT 20
-			`, [this.currentPath])
+			`,
+				[this.currentPath]
+			)
 
 			return Response.json({
 				location: this.currentPath,
 				forecasts: forecasts.results || [],
 				totalForecasts: forecasts.results?.length || 0,
-				lastRun: new Date().toISOString()
+				lastRun: new Date().toISOString(),
 			})
-
 		} catch (error) {
-			return Response.json({
-				error: 'Demand forecast failed',
-				details: error instanceof Error ? error.message : 'Unknown error'
-			}, { status: 500 })
+			return Response.json(
+				{
+					error: 'Demand forecast failed',
+					details: error instanceof Error ? error.message : 'Unknown error',
+				},
+				{ status: 500 }
+			)
 		}
 	}
 
@@ -1478,28 +1589,37 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 	private async getAIInsights(_request: Request): Promise<Response> {
 		try {
 			// Get recent AI analyses
-			const analyses = await this.sql(`
+			const analyses = await this.sql(
+				`
 				SELECT * FROM inventory_analysis
 				WHERE location = ?
 				ORDER BY timestamp DESC
 				LIMIT 10
-			`, [this.currentPath])
+			`,
+				[this.currentPath]
+			)
 
 			// Get recent decisions
-			const decisions = await this.sql(`
+			const decisions = await this.sql(
+				`
 				SELECT * FROM inventory_decisions
 				WHERE location = ?
 				ORDER BY timestamp DESC
 				LIMIT 10
-			`, [this.currentPath])
+			`,
+				[this.currentPath]
+			)
 
 			// Get recent forecasts
-			const forecasts = await this.sql(`
+			const forecasts = await this.sql(
+				`
 				SELECT * FROM demand_forecasts
 				WHERE location = ?
 				ORDER BY forecast_date DESC
 				LIMIT 5
-			`, [this.currentPath])
+			`,
+				[this.currentPath]
+			)
 
 			return Response.json({
 				location: this.currentPath,
@@ -1507,22 +1627,24 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 				insights: {
 					recentAnalyses: analyses.results || [],
 					recentDecisions: decisions.results || [],
-					recentForecasts: forecasts.results || []
+					recentForecasts: forecasts.results || [],
 				},
 				summary: {
 					totalAnalyses: analyses.results?.length || 0,
 					totalDecisions: decisions.results?.length || 0,
 					totalForecasts: forecasts.results?.length || 0,
-					avgConfidence: this.calculateAverageConfidence(analyses.results || [])
+					avgConfidence: this.calculateAverageConfidence(analyses.results || []),
 				},
-				timestamp: new Date().toISOString()
+				timestamp: new Date().toISOString(),
 			})
-
 		} catch (error) {
-			return Response.json({
-				error: 'Failed to get AI insights',
-				details: error instanceof Error ? error.message : 'Unknown error'
-			}, { status: 500 })
+			return Response.json(
+				{
+					error: 'Failed to get AI insights',
+					details: error instanceof Error ? error.message : 'Unknown error',
+				},
+				{ status: 500 }
+			)
 		}
 	}
 
@@ -1598,7 +1720,7 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 					agentType: this.state.agentType,
 					inventory,
 					totalItems: inventory.length,
-					lastUpdated: new Date().toISOString()
+					lastUpdated: new Date().toISOString(),
 				}
 
 				// Cache for 60 seconds
@@ -1635,32 +1757,38 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 					return Response.json({
 						location: this.currentPath,
 						item,
-						available: item.currentStock > 0
+						available: item.currentStock > 0,
 					})
 				} else {
-					return Response.json({
-						location: this.currentPath,
-						sku,
-						available: false,
-						message: 'SKU not found'
-					}, { status: 404 })
+					return Response.json(
+						{
+							location: this.currentPath,
+							sku,
+							available: false,
+							message: 'SKU not found',
+						},
+						{ status: 404 }
+					)
 				}
 			} else {
 				// Query all inventory
 				return this.handleStockOperation(request)
 			}
 		} catch (error) {
-			return Response.json({
-				error: 'Query failed',
-				details: error instanceof Error ? error.message : 'Unknown error'
-			}, { status: 500 })
+			return Response.json(
+				{
+					error: 'Query failed',
+					details: error instanceof Error ? error.message : 'Unknown error',
+				},
+				{ status: 500 }
+			)
 		}
 	}
 
 	// Handle inventory sync from external systems
 	private async handleInventorySync(request: Request): Promise<Response> {
 		try {
-			const syncData = await request.json() as { updates: InventoryUpdate[] }
+			const syncData = (await request.json()) as { updates: InventoryUpdate[] }
 
 			let successCount = 0
 			let errorCount = 0
@@ -1681,15 +1809,18 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 					totalUpdates: syncData.updates.length,
 					successful: successCount,
 					failed: errorCount,
-					errors: errors.slice(0, 10) // Limit error details
+					errors: errors.slice(0, 10), // Limit error details
 				},
-				location: this.currentPath
+				location: this.currentPath,
 			})
 		} catch (error) {
-			return Response.json({
-				error: 'Sync failed',
-				details: error instanceof Error ? error.message : 'Unknown error'
-			}, { status: 500 })
+			return Response.json(
+				{
+					error: 'Sync failed',
+					details: error instanceof Error ? error.message : 'Unknown error',
+				},
+				{ status: 500 }
+			)
 		}
 	}
 
@@ -1707,7 +1838,7 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 						currentStock: item.currentStock,
 						threshold: item.lowStockThreshold,
 						location: this.currentPath,
-						severity: item.currentStock === 0 ? 'critical' : 'warning'
+						severity: item.currentStock === 0 ? 'critical' : 'warning',
 					})
 				}
 			}
@@ -1716,26 +1847,38 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 				location: this.currentPath,
 				alerts,
 				totalAlerts: alerts.length,
-				criticalAlerts: alerts.filter(a => a.severity === 'critical').length
+				criticalAlerts: alerts.filter((a) => a.severity === 'critical').length,
 			})
 		} catch (error) {
-			return Response.json({
-				error: 'Failed to get alerts',
-				details: error instanceof Error ? error.message : 'Unknown error'
-			}, { status: 500 })
+			return Response.json(
+				{
+					error: 'Failed to get alerts',
+					details: error instanceof Error ? error.message : 'Unknown error',
+				},
+				{ status: 500 }
+			)
 		}
 	}
 
 	// Process stock updates (core inventory logic with AI enhancement)
 	// Process stock updates using InventoryService
-	private async processStockUpdate(update: InventoryUpdate | { type: 'stockUpdate'; sku: string; quantity: number; operation: 'set' | 'increment' | 'decrement' }): Promise<void> {
+	private async processStockUpdate(
+		update:
+			| InventoryUpdate
+			| {
+					type: 'stockUpdate'
+					sku: string
+					quantity: number
+					operation: 'set' | 'increment' | 'decrement'
+			  }
+	): Promise<void> {
 		// Convert to InventoryUpdate format
 		const inventoryUpdate: InventoryUpdate = {
 			sku: update.sku,
 			quantity: update.quantity,
 			operation: update.operation,
 			timestamp: new Date().toISOString(),
-			location: this.currentPath
+			location: this.currentPath,
 		}
 
 		// Use InventoryService to process the update
@@ -1755,26 +1898,35 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 	}
 
 	// Process stock queries via WebSocket
-	private async processStockQuery(ws: WebSocket, query: { type: 'stockQuery'; sku: string }): Promise<void> {
+	private async processStockQuery(
+		ws: WebSocket,
+		query: { type: 'stockQuery'; sku: string }
+	): Promise<void> {
 		const item = this.state.inventory.get(query.sku)
 
 		this.sendToWebSocket(ws, {
 			type: 'stockResponse',
 			sku: query.sku,
 			quantity: item ? item.currentStock : 0,
-			location: this.currentPath
+			location: this.currentPath,
 		})
 	}
 
 	// Process inventory sync via WebSocket
-	private async processInventorySync(sync: { type: 'inventorySync'; updates: InventoryUpdate[] }): Promise<void> {
+	private async processInventorySync(sync: {
+		type: 'inventorySync'
+		updates: InventoryUpdate[]
+	}): Promise<void> {
 		for (const update of sync.updates) {
 			await this.processStockUpdate(update)
 		}
 	}
 
 	// Process chat messages with AI-powered responses
-	private async processChatMessage(ws: WebSocket, message: { type: 'chatMessage'; content: string; userId?: string }): Promise<void> {
+	private async processChatMessage(
+		ws: WebSocket,
+		message: { type: 'chatMessage'; content: string; userId?: string }
+	): Promise<void> {
 		try {
 			console.log(`[CHAT] Processing message: "${message.content}"`)
 
@@ -1789,7 +1941,7 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 				type: 'chatResponse',
 				role: 'user',
 				content: message.content,
-				timestamp: new Date().toISOString()
+				timestamp: new Date().toISOString(),
 			})
 
 			// Process with AI service for intelligent response
@@ -1804,22 +1956,22 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 				role: 'assistant',
 				content: aiResponse.content,
 				timestamp: new Date().toISOString(),
-				metadata: aiResponse.metadata
+				metadata: aiResponse.metadata,
 			})
 
 			// Execute any actions if specified
 			if (aiResponse.actions && aiResponse.actions.length > 0) {
 				await this.executeChatActions(aiResponse.actions, ws)
 			}
-
 		} catch (error) {
 			console.error('[CHAT] Error processing chat message:', error)
 			this.sendToWebSocket(ws, {
 				type: 'chatResponse',
 				role: 'assistant',
-				content: 'I apologize, but I encountered an error processing your request. Please try again.',
+				content:
+					'I apologize, but I encountered an error processing your request. Please try again.',
 				timestamp: new Date().toISOString(),
-				metadata: { error: true }
+				metadata: { error: true },
 			})
 		}
 	}
@@ -1830,13 +1982,16 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 			console.log(`[CHAT] Loading chat history for location: ${this.currentPath}`)
 
 			// Load chat messages from SQLite
-			const result = this.sqlStorage.exec(`
+			const result = this.sqlStorage.exec(
+				`
 				SELECT * FROM stored_messages
 				WHERE location = ?
 				AND (from_agent = 'user' OR from_agent = 'ai-assistant')
 				ORDER BY timestamp ASC
 				LIMIT 100
-			`, [this.currentPath])
+			`,
+				[this.currentPath]
+			)
 
 			const messages = result.toArray()
 			console.log(`[CHAT] Loaded ${messages.length} chat messages from storage`)
@@ -1849,7 +2004,7 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 					from_agent: row.from_agent as string,
 					to_agent: row.to_agent as string | null,
 					content: row.content as string,
-					message_type: row.message_type as 'direct' | 'broadcast' | 'system'
+					message_type: row.message_type as 'direct' | 'broadcast' | 'system',
 				}
 				this.state.messages.push(message)
 			}
@@ -1858,7 +2013,6 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 			if (this.state.messages.length > 100) {
 				this.state.messages = this.state.messages.slice(-100)
 			}
-
 		} catch (error) {
 			console.error('[CHAT] Failed to load chat history:', error)
 		}
@@ -1878,13 +2032,12 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 						role: message.from_agent === 'user' ? 'user' : 'assistant',
 						content: message.content,
 						timestamp: message.timestamp,
-						metadata: message.from_agent === 'ai-assistant' ? { loaded: true } : undefined
+						metadata: message.from_agent === 'ai-assistant' ? { loaded: true } : undefined,
 					})
 				}
 			}
 
 			console.log(`[CHAT] Sent ${this.state.messages.length} chat messages to client`)
-
 		} catch (error) {
 			console.error('[CHAT] Failed to send chat history:', error)
 		}
@@ -1898,15 +2051,18 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 			// Delete messages older than 30 days
 			const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
-			this.sqlStorage.exec(`
+			this.sqlStorage.exec(
+				`
 				DELETE FROM stored_messages
 				WHERE location = ?
 				AND (from_agent = 'user' OR from_agent = 'ai-assistant')
 				AND timestamp < ?
-			`, this.currentPath, thirtyDaysAgo)
+			`,
+				this.currentPath,
+				thirtyDaysAgo
+			)
 
 			console.log(`[CHAT] Cleaned up old chat messages`)
-
 		} catch (error) {
 			console.error('[CHAT] Failed to cleanup old chat messages:', error)
 		}
@@ -1919,10 +2075,13 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 
 			const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
 
-			const result = this.sqlStorage.exec(`
+			const result = this.sqlStorage.exec(
+				`
 				SELECT * FROM chat_statistics
 				WHERE location = ? AND date = ?
-			`, [this.currentPath, today])
+			`,
+				[this.currentPath, today]
+			)
 
 			const stats = result.toArray()[0] as any
 			if (stats) {
@@ -1930,13 +2089,12 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 					messagesToday: stats.messages_today || 0,
 					actionsExecuted: stats.actions_executed || 0,
 					successfulActions: stats.successful_actions || 0,
-					successRate: stats.success_rate || 0.0
+					successRate: stats.success_rate || 0.0,
 				}
 				console.log(`[CHAT] Loaded chat statistics:`, this.chatStats)
 			} else {
 				console.log(`[CHAT] No existing statistics for today, starting fresh`)
 			}
-
 		} catch (error) {
 			console.error('[CHAT] Failed to load chat statistics:', error)
 		}
@@ -1949,38 +2107,44 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 			const now = new Date().toISOString()
 
 			// Calculate success rate
-			this.chatStats.successRate = this.chatStats.actionsExecuted > 0
-				? (this.chatStats.successfulActions / this.chatStats.actionsExecuted) * 100
-				: 0
+			this.chatStats.successRate =
+				this.chatStats.actionsExecuted > 0
+					? (this.chatStats.successfulActions / this.chatStats.actionsExecuted) * 100
+					: 0
 
 			console.log(`[CHAT] Saving chat statistics to database:`, {
 				location: this.currentPath,
 				date: today,
 				stats: this.chatStats,
-				timestamp: now
+				timestamp: now,
 			})
 
-			this.sqlStorage.exec(`
+			this.sqlStorage.exec(
+				`
 				INSERT OR REPLACE INTO chat_statistics
 				(location, date, messages_today, actions_executed, successful_actions, success_rate, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?, ?,
 					COALESCE((SELECT created_at FROM chat_statistics WHERE location = ? AND date = ?), ?),
 					?)
-			`, [
-				this.currentPath, today,
-				this.chatStats.messagesToday,
-				this.chatStats.actionsExecuted,
-				this.chatStats.successfulActions,
-				this.chatStats.successRate,
-				this.currentPath, today, now, // for created_at fallback
-				now // updated_at
-			])
+			`,
+				[
+					this.currentPath,
+					today,
+					this.chatStats.messagesToday,
+					this.chatStats.actionsExecuted,
+					this.chatStats.successfulActions,
+					this.chatStats.successRate,
+					this.currentPath,
+					today,
+					now, // for created_at fallback
+					now, // updated_at
+				]
+			)
 
 			console.log(`[CHAT] Successfully saved chat statistics to database`)
 
 			// Run persistence test after saving
 			await this.testChatStatsPersistence()
-
 		} catch (error) {
 			console.error('[CHAT] Failed to save chat statistics:', error)
 		}
@@ -1992,24 +2156,23 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 			switch (type) {
 				case 'message':
 					this.chatStats.messagesToday++
-				break
+					break
 				case 'action':
 					this.chatStats.actionsExecuted++
-				break
+					break
 				case 'success':
 					this.chatStats.successfulActions++
 					break
 				case 'failure':
 					// Don't increment actionsExecuted here as it's already counted
-				break
-		}
+					break
+			}
 
 			// Save to database
 			await this.saveChatStatistics()
 
 			// Broadcast updated stats to all connected clients
 			this.broadcastChatStats()
-
 		} catch (error) {
 			console.error('[CHAT] Failed to update chat statistics:', error)
 		}
@@ -2021,7 +2184,7 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 			type: 'chatStats',
 			messagesToday: this.chatStats.messagesToday,
 			actionsExecuted: this.chatStats.actionsExecuted,
-			successRate: Math.round(this.chatStats.successRate * 100) / 100 // Round to 2 decimal places
+			successRate: Math.round(this.chatStats.successRate * 100) / 100, // Round to 2 decimal places
 		})
 	}
 
@@ -2032,10 +2195,13 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 
 			// Get current stats from database
 			const today = new Date().toISOString().split('T')[0]
-			const result = this.sqlStorage.exec(`
+			const result = this.sqlStorage.exec(
+				`
 				SELECT * FROM chat_statistics
 				WHERE location = ? AND date = ?
-			`, [this.currentPath, today])
+			`,
+				[this.currentPath, today]
+			)
 
 			const dbStats = result.toArray()[0] as any
 			const memoryStats = this.chatStats
@@ -2054,13 +2220,16 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 
 				if (!matches) {
 					console.error(`[CHAT] Stats mismatch detected!`)
-					console.error(`[CHAT] Memory: messages=${memoryStats.messagesToday}, actions=${memoryStats.actionsExecuted}, success=${memoryStats.successfulActions}`)
-					console.error(`[CHAT] Database: messages=${dbStats.messages_today}, actions=${dbStats.actions_executed}, success=${dbStats.successful_actions}`)
+					console.error(
+						`[CHAT] Memory: messages=${memoryStats.messagesToday}, actions=${memoryStats.actionsExecuted}, success=${memoryStats.successfulActions}`
+					)
+					console.error(
+						`[CHAT] Database: messages=${dbStats.messages_today}, actions=${dbStats.actions_executed}, success=${dbStats.successful_actions}`
+					)
 				}
 			} else {
 				console.log(`[CHAT] No database stats found for today`)
 			}
-
 		} catch (error) {
 			console.error('[CHAT] Failed to test chat statistics persistence:', error)
 		}
@@ -2076,7 +2245,7 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 			console.log(`[CHAT] Initial stats:`, initialStats)
 
 			// Wait 25 seconds
-			await new Promise(resolve => setTimeout(resolve, 25000))
+			await new Promise((resolve) => setTimeout(resolve, 25000))
 
 			// Check if stats are still persisted
 			await this.testChatStatsPersistence()
@@ -2095,14 +2264,16 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 				console.error(`[CHAT] Initial:`, initialStats)
 				console.error(`[CHAT] Current:`, currentStats)
 			}
-
 		} catch (error) {
 			console.error('[CHAT] Failed to test persistence over time:', error)
 		}
 	}
 
 	// Process chat message with AI service
-	private async processChatWithAI(message: string, userId?: string): Promise<{
+	private async processChatWithAI(
+		message: string,
+		userId?: string
+	): Promise<{
 		content: string
 		metadata?: any
 		actions?: Array<{ type: string; data: any }>
@@ -2144,27 +2315,36 @@ Respond in JSON format with:
 {
   "content": "Your response to the user",
   "actions": [{"type": "action_type", "data": {...}}] // optional
-}`
+}`,
 				},
 				{
 					role: 'user',
-					content: message
-				}
+					content: message,
+				},
 			])
 
 			// Parse AI response - handle both JSON and plain text responses
 			let response
 			try {
 				// Ensure we have a string to parse
-				const responseText = typeof aiResponse.response === 'string' ? aiResponse.response : JSON.stringify(aiResponse.response)
+				const responseText =
+					typeof aiResponse.response === 'string'
+						? aiResponse.response
+						: JSON.stringify(aiResponse.response)
 				response = JSON.parse(responseText)
 			} catch (parseError) {
 				// If parsing fails, treat as plain text response
-				console.log('[CHAT] AI returned plain text response, wrapping in JSON structure:', parseError instanceof Error ? parseError.message : 'Unknown parse error')
-				const responseText = typeof aiResponse.response === 'string' ? aiResponse.response : JSON.stringify(aiResponse.response)
+				console.log(
+					'[CHAT] AI returned plain text response, wrapping in JSON structure:',
+					parseError instanceof Error ? parseError.message : 'Unknown parse error'
+				)
+				const responseText =
+					typeof aiResponse.response === 'string'
+						? aiResponse.response
+						: JSON.stringify(aiResponse.response)
 				response = {
 					content: responseText,
-					actions: []
+					actions: [],
 				}
 			}
 
@@ -2172,11 +2352,10 @@ Respond in JSON format with:
 			response.metadata = {
 				confidence: 0.9,
 				processingTime: Date.now(),
-				userId: userId || 'anonymous'
+				userId: userId || 'anonymous',
 			}
 
 			return response
-
 		} catch (error) {
 			console.error('[CHAT] AI processing failed:', error)
 
@@ -2186,8 +2365,8 @@ Respond in JSON format with:
 				metadata: {
 					confidence: 0.5,
 					fallback: true,
-					error: error instanceof Error ? error.message : 'Unknown error'
-				}
+					error: error instanceof Error ? error.message : 'Unknown error',
+				},
 			}
 		}
 	}
@@ -2202,35 +2381,43 @@ Respond in JSON format with:
 
 		// Low stock queries
 		if (lowerMessage.includes('low stock') || lowerMessage.includes('low inventory')) {
-			const lowStockItems = Array.from(this.state.inventory.values())
-				.filter(item => item.currentStock <= item.lowStockThreshold)
+			const lowStockItems = Array.from(this.state.inventory.values()).filter(
+				(item) => item.currentStock <= item.lowStockThreshold
+			)
 
 			if (lowStockItems.length === 0) {
 				return {
-					content: "Great news! No items are currently low on stock.",
+					content: 'Great news! No items are currently low on stock.',
 					metadata: { action: 'show_low_stock', count: 0 },
-					actions: [{ type: 'show_low_stock', data: {} }]
+					actions: [{ type: 'show_low_stock', data: {} }],
 				}
 			} else {
-				const itemList = lowStockItems.map(item =>
-					`• ${item.sku}: ${item.currentStock}/${item.lowStockThreshold} units`
-				).join('\n')
+				const itemList = lowStockItems
+					.map((item) => `• ${item.sku}: ${item.currentStock}/${item.lowStockThreshold} units`)
+					.join('\n')
 
 				return {
 					content: `I found ${lowStockItems.length} items that are low on stock:\n\n${itemList}`,
 					metadata: { action: 'show_low_stock', count: lowStockItems.length },
-					actions: [{ type: 'show_low_stock', data: {} }]
+					actions: [{ type: 'show_low_stock', data: {} }],
 				}
 			}
 		}
 
 		// Summary queries
-		if (lowerMessage.includes('summary') || lowerMessage.includes('overview') || lowerMessage.includes('status')) {
+		if (
+			lowerMessage.includes('summary') ||
+			lowerMessage.includes('overview') ||
+			lowerMessage.includes('status')
+		) {
 			const totalItems = this.state.inventory.size
-			const totalStock = Array.from(this.state.inventory.values())
-				.reduce((sum, item) => sum + item.currentStock, 0)
-			const lowStockCount = Array.from(this.state.inventory.values())
-				.filter(item => item.currentStock <= item.lowStockThreshold).length
+			const totalStock = Array.from(this.state.inventory.values()).reduce(
+				(sum, item) => sum + item.currentStock,
+				0
+			)
+			const lowStockCount = Array.from(this.state.inventory.values()).filter(
+				(item) => item.currentStock <= item.lowStockThreshold
+			).length
 
 			return {
 				content: `Inventory Summary for ${this.currentPath}:
@@ -2239,7 +2426,7 @@ Respond in JSON format with:
 • Low stock items: ${lowStockCount}
 • Active agents: ${this.state.agents.size}`,
 				metadata: { action: 'show_summary', totalItems, totalStock, lowStockCount },
-				actions: [{ type: 'show_summary', data: {} }]
+				actions: [{ type: 'show_summary', data: {} }],
 			}
 		}
 
@@ -2255,7 +2442,7 @@ Respond in JSON format with:
 • **Summary reports** - "Show inventory summary" or "Give me an overview"
 
 Just ask me in natural language and I'll help you manage your inventory!`,
-				metadata: { action: 'help' }
+				metadata: { action: 'help' },
 			}
 		}
 
@@ -2268,13 +2455,18 @@ Just ask me in natural language and I'll help you manage your inventory!`,
 			if (item) {
 				return {
 					content: `Stock level for ${sku}: ${item.currentStock} units (threshold: ${item.lowStockThreshold})`,
-					metadata: { action: 'check_stock', sku, stock: item.currentStock, threshold: item.lowStockThreshold },
-					actions: [{ type: 'check_stock', data: { sku } }]
+					metadata: {
+						action: 'check_stock',
+						sku,
+						stock: item.currentStock,
+						threshold: item.lowStockThreshold,
+					},
+					actions: [{ type: 'check_stock', data: { sku } }],
 				}
 			} else {
 				return {
 					content: `I couldn't find SKU "${sku}" in the current inventory. Available SKUs: ${Array.from(this.state.inventory.keys()).join(', ')}`,
-					metadata: { action: 'check_stock', sku, found: false }
+					metadata: { action: 'check_stock', sku, found: false },
 				}
 			}
 		}
@@ -2283,7 +2475,10 @@ Just ask me in natural language and I'll help you manage your inventory!`,
 	}
 
 	// Execute actions from chat responses
-	private async executeChatActions(actions: Array<{ type: string; data: any }>, ws: WebSocket): Promise<void> {
+	private async executeChatActions(
+		actions: Array<{ type: string; data: any }>,
+		ws: WebSocket
+	): Promise<void> {
 		for (const action of actions) {
 			try {
 				// Track action execution
@@ -2311,8 +2506,7 @@ Just ask me in natural language and I'll help you manage your inventory!`,
 
 				// Track successful action
 				await this.updateChatStats('success')
-
-		} catch (error) {
+			} catch (error) {
 				console.error(`[CHAT] Error executing action ${action.type}:`, error)
 				// Track failed action
 				await this.updateChatStats('failure')
@@ -2336,19 +2530,22 @@ Just ask me in natural language and I'll help you manage your inventory!`,
 				sku: data.sku,
 				stock: stockLevel,
 				threshold: threshold,
-				status: stockLevel <= threshold ? 'low' : 'normal'
-			}
+				status: stockLevel <= threshold ? 'low' : 'normal',
+			},
 		})
 	}
 
-	private async executeUpdateStock(data: { sku: string; quantity: number; operation: string }, ws: WebSocket): Promise<void> {
+	private async executeUpdateStock(
+		data: { sku: string; quantity: number; operation: string },
+		ws: WebSocket
+	): Promise<void> {
 		await this.processStockUpdate({
 			type: 'stockUpdate',
 			sku: data.sku,
 			quantity: data.quantity,
 			operation: data.operation as 'set' | 'increment' | 'decrement',
 			timestamp: new Date().toISOString(),
-			location: this.currentPath
+			location: this.currentPath,
 		})
 
 		this.sendToWebSocket(ws, {
@@ -2360,8 +2557,8 @@ Just ask me in natural language and I'll help you manage your inventory!`,
 				action: 'update_stock',
 				sku: data.sku,
 				operation: data.operation,
-				quantity: data.quantity
-			}
+				quantity: data.quantity,
+			},
 		})
 	}
 
@@ -2370,7 +2567,7 @@ Just ask me in natural language and I'll help you manage your inventory!`,
 			const forecast = await this.workflowService.triggerForecastWorkflow({
 				location: this.currentPath,
 				forecastPeriod: data.period || 30,
-				forceRefresh: true
+				forceRefresh: true,
 			})
 
 			this.sendToWebSocket(ws, {
@@ -2381,8 +2578,8 @@ Just ask me in natural language and I'll help you manage your inventory!`,
 				metadata: {
 					action: 'generate_forecast',
 					workflowId: forecast,
-					period: data.period || 30
-				}
+					period: data.period || 30,
+				},
 			})
 		} catch (error) {
 			this.sendToWebSocket(ws, {
@@ -2390,37 +2587,41 @@ Just ask me in natural language and I'll help you manage your inventory!`,
 				role: 'assistant',
 				content: `Failed to generate forecast: ${error instanceof Error ? error.message : 'Unknown error'}`,
 				timestamp: new Date().toISOString(),
-				metadata: { error: true }
+				metadata: { error: true },
 			})
 		}
 	}
 
 	private async executeShowLowStock(ws: WebSocket): Promise<void> {
 		const lowStockItems = Array.from(this.state.inventory.values())
-			.filter(item => item.currentStock <= item.lowStockThreshold)
-			.map(item => `${item.sku}: ${item.currentStock}/${item.lowStockThreshold}`)
+			.filter((item) => item.currentStock <= item.lowStockThreshold)
+			.map((item) => `${item.sku}: ${item.currentStock}/${item.lowStockThreshold}`)
 
 		this.sendToWebSocket(ws, {
 			type: 'chatResponse',
 			role: 'assistant',
-			content: lowStockItems.length > 0
-				? `Low stock items:\n${lowStockItems.join('\n')}`
-				: 'No items are currently low on stock.',
+			content:
+				lowStockItems.length > 0
+					? `Low stock items:\n${lowStockItems.join('\n')}`
+					: 'No items are currently low on stock.',
 			timestamp: new Date().toISOString(),
 			metadata: {
 				action: 'show_low_stock',
 				items: lowStockItems,
-				count: lowStockItems.length
-			}
+				count: lowStockItems.length,
+			},
 		})
 	}
 
 	private async executeShowSummary(ws: WebSocket): Promise<void> {
 		const totalItems = this.state.inventory.size
-		const totalStock = Array.from(this.state.inventory.values())
-			.reduce((sum, item) => sum + item.currentStock, 0)
-		const lowStockCount = Array.from(this.state.inventory.values())
-			.filter(item => item.currentStock <= item.lowStockThreshold).length
+		const totalStock = Array.from(this.state.inventory.values()).reduce(
+			(sum, item) => sum + item.currentStock,
+			0
+		)
+		const lowStockCount = Array.from(this.state.inventory.values()).filter(
+			(item) => item.currentStock <= item.lowStockThreshold
+		).length
 
 		this.sendToWebSocket(ws, {
 			type: 'chatResponse',
@@ -2436,19 +2637,21 @@ Just ask me in natural language and I'll help you manage your inventory!`,
 				totalItems,
 				totalStock,
 				lowStockCount,
-				agentCount: this.state.agents.size
-			}
+				agentCount: this.state.agents.size,
+			},
 		})
 	}
 
 	// Propagate stock updates to parent agents (agentic coordination)
-	private async propagateStockUpdate(update: InventoryUpdate | { sku: string; quantity: number; operation: string }): Promise<void> {
+	private async propagateStockUpdate(
+		update: InventoryUpdate | { sku: string; quantity: number; operation: string }
+	): Promise<void> {
 		// Only propagate if we're not at root
 		if (this.currentPath === '/') return
 
 		try {
 			// Find parent path
-			const pathParts = this.currentPath.split('/').filter(p => p.length > 0)
+			const pathParts = this.currentPath.split('/').filter((p) => p.length > 0)
 			if (pathParts.length === 0) return
 
 			const parentPath = pathParts.length === 1 ? '/' : '/' + pathParts.slice(0, -1).join('/')
@@ -2458,19 +2661,21 @@ Just ask me in natural language and I'll help you manage your inventory!`,
 			const parentStub = this.env.FLEET_MANAGER.get(parentId)
 
 			// Send update to parent
-			await parentStub.fetch(new Request('http://internal/inventory/stock', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					'x-fleet-path': parentPath
-				},
-				body: JSON.stringify({
-					...update,
-					timestamp: new Date().toISOString(),
-					location: this.currentPath,
-					source: 'child_agent'
+			await parentStub.fetch(
+				new Request('http://internal/inventory/stock', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'x-fleet-path': parentPath,
+					},
+					body: JSON.stringify({
+						...update,
+						timestamp: new Date().toISOString(),
+						location: this.currentPath,
+						source: 'child_agent',
+					}),
 				})
-			}))
+			)
 
 			console.log(`Propagated stock update to parent: ${parentPath}`)
 		} catch (error) {

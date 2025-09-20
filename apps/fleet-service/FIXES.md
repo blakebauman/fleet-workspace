@@ -3,33 +3,40 @@
 ## 🐛 Issues Identified & Fixed
 
 ### Issue 1: Manual Refresh Required
+
 **Problem**: Agents were created but UI didn't update automatically
 **Root Cause**: Multiple Durable Object instances being created for the same path
 **Fix**:
+
 - Always load state at the beginning of `fetch()` method
 - Ensure consistent DO instance reuse via `idFromName(path)`
 - Remove redundant `loadState()` calls
 
 ### Issue 2: WebSocket URL Construction
+
 **Problem**: URLs like `/team1ws` instead of `/team1/ws`
 **Fix**: Proper pathname handling in JavaScript:
+
 ```javascript
 const pathname = window.location.pathname.endsWith('/')
-    ? window.location.pathname + 'ws'
-    : window.location.pathname + '/ws';
+  ? window.location.pathname + 'ws'
+  : window.location.pathname + '/ws'
 ```
 
 ### Issue 3: Path Information Loss
+
 **Problem**: FleetManager didn't know which path it represented
 **Fix**: Pass path via `x-fleet-path` header for all requests
 
 ### Issue 4: State Loading Inconsistency
+
 **Problem**: State only loaded on WebSocket connections
 **Fix**: Load state at the start of every `fetch()` call
 
 ## ✅ Key Changes Made
 
 ### 1. FleetManager.ts
+
 ```typescript
 async fetch(request: Request): Promise<Response> {
     // Always load state first to ensure consistency
@@ -45,11 +52,13 @@ async fetch(request: Request): Promise<Response> {
 ```
 
 ### 2. index.ts
+
 - Simplified routing with single `.all('/*')` handler
 - Consistent path passing via headers
 - Proper DO instance reuse
 
 ### 3. ui.ts
+
 - Fixed WebSocket URL construction
 - Added comprehensive debug logging
 
@@ -65,12 +74,14 @@ async fetch(request: Request): Promise<Response> {
 ## 🔍 Debug Features Added
 
 ### Console Logs
+
 - WebSocket connection status
 - Agent creation process
 - Message sending/receiving
 - Path detection
 
 ### Server Logs
+
 ```
 Creating agent "test-agent" at path: /
 Agent "test-agent" created successfully. Current agents: test-agent
@@ -78,6 +89,7 @@ WebSocket connected to path: /, agents: test-agent, counter: 0
 ```
 
 ### Browser Console
+
 ```
 Connecting to WebSocket: ws://localhost:58523/ws
 WebSocket connected to: ws://localhost:58523/ws
@@ -90,11 +102,13 @@ WebSocket message received: {"type":"state","counter":0,"agents":["test-agent"]}
 ## 🆕 Agent Name Validation Fix
 
 ### Issue 5: Spaces Not Allowed in Agent Names
+
 **Problem**: Agent names with spaces (like "Testing Child") were rejected
 **Root Cause**: Regex only allowed `[a-zA-Z0-9_-]` (no spaces)
 **Fix**: Updated validation to allow spaces + proper URL encoding
 
 ### Changes Made:
+
 ```typescript
 // NEW: Allow spaces in agent names
 private isValidAgentName(name: string): boolean {
@@ -111,6 +125,7 @@ const childPath = this.currentPath === '/' ? `/${encodedName}` : `${this.current
 ```
 
 ### UI Updates:
+
 - **Links**: `encodeURIComponent(agent)` for manage/navigate links
 - **Breadcrumbs**: URL-encoded paths for proper navigation
 - **Error message**: Updated to mention spaces are allowed

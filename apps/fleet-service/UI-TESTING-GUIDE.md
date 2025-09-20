@@ -3,6 +3,7 @@
 ## Overview
 
 The UI has been enhanced with three main sections:
+
 1. **Fleet Management** - Original fleet functionality (creating agents, messaging)
 2. **Inventory Dashboard** - Inventory management with real-time updates
 3. **AI Control Center** - AI-powered analysis and workflows
@@ -10,6 +11,7 @@ The UI has been enhanced with three main sections:
 ## Getting Started
 
 1. **Start the development server**:
+
    ```bash
    cd apps/fleet-service
    npm run dev
@@ -96,17 +98,20 @@ The UI has been enhanced with three main sections:
 **Switch to AI Control Center tab:**
 
 **AI Analysis:**
+
 1. Enter a SKU (e.g., `LAPTOP-001`) in "SKU to Analyze"
 2. Click the brain icon to run analysis
 3. Observe AI recommendations for reorder quantity, urgency, etc.
 4. Check the real-time AI activity feed
 
 **Demand Forecasting:**
+
 1. Click "Run 30-Day Demand Forecast"
 2. Watch the forecast results populate
 3. Check WebSocket messages for AI notifications
 
 **AI Insights:**
+
 1. Click "Get AI Insights" to see decision history
 2. Monitor confidence levels and decision patterns
 
@@ -168,12 +173,14 @@ The UI has been enhanced with three main sections:
 ## Expected UI Features
 
 ### Fleet Management Tab
+
 - ✅ Agent creation and hierarchy navigation
 - ✅ Real-time messaging between agents
 - ✅ WebSocket connection status
 - ✅ Agent list with navigation
 
 ### Inventory Dashboard Tab
+
 - ✅ Real-time inventory overview cards
 - ✅ Inventory management form
 - ✅ Current inventory list with quick actions
@@ -181,6 +188,7 @@ The UI has been enhanced with three main sections:
 - ✅ Quick action buttons for demos
 
 ### AI Control Center Tab
+
 - ✅ AI status overview with metrics
 - ✅ Individual SKU analysis panel
 - ✅ Demand forecasting controls
@@ -191,12 +199,14 @@ The UI has been enhanced with three main sections:
 ## Real-time Features to Test
 
 ### WebSocket Messages
+
 - Inventory updates appear in communication panel
 - AI decisions show in activity feeds
 - Low stock alerts trigger immediately
 - Cross-agent coordination messages
 
 ### Live UI Updates
+
 - Inventory stats update on changes
 - Alert panels refresh automatically
 - AI activity feed updates in real-time
@@ -205,12 +215,14 @@ The UI has been enhanced with three main sections:
 ## Troubleshooting
 
 ### Common Issues
+
 1. **WebSocket not connecting**: Check browser console for errors
 2. **Inventory not updating**: Verify API endpoints are responding
 3. **AI analysis failing**: Check if mock AI responses are working
 4. **Missing icons**: Icons should display using included SVG components
 
 ### Debug Information
+
 - Check browser console for errors
 - Monitor Network tab for API calls
 - Watch WebSocket messages in browser dev tools
@@ -219,6 +231,7 @@ The UI has been enhanced with three main sections:
 ## Success Criteria
 
 A successful test demonstrates:
+
 1. ✅ Hierarchical agent creation and navigation
 2. ✅ Real-time inventory management across multiple locations
 3. ✅ AI-powered analysis and recommendations

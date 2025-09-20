@@ -27,30 +27,35 @@ The **Agentic AI Inventory System** is built on Cloudflare's edge computing plat
 ## 🎯 Key Features Implemented
 
 ### ✅ Multi-Tenant Architecture
+
 - **Subdomain Routing**: `acme.domain.com` → Tenant: `acme`
 - **Path-based Routing**: `/tenant/walmart/...` → Tenant: `walmart`
 - **Complete Data Isolation**: Each tenant gets unique Durable Object instances
 - **Tenant-specific URLs**: Full multi-tenancy support for enterprise customers
 
 ### ✅ Hierarchical Agent Structure
+
 - **Root Agents**: Organization/continent-level orchestrators
 - **Child Agents**: Warehouses, stores, distribution centers
 - **Flexible Hierarchy**: `/continent/country/state/city/warehouse`
 - **Real-time Propagation**: Updates flow up and down the hierarchy
 
 ### ✅ AI-Powered Decision Making
+
 - **Demand Forecasting**: ML-driven 30-day demand predictions
 - **Reorder Analysis**: Intelligent stock level recommendations
 - **Low Stock Alerts**: Proactive notifications with AI insights
 - **Human-in-the-Loop**: AI recommendations with approval workflows
 
 ### ✅ Real-time Communication
+
 - **WebSocket Connections**: Instant updates across all connected clients
 - **Multi-client Support**: Multiple users can monitor same agent
 - **Live Data Sync**: Inventory changes broadcast immediately
 - **Connection Recovery**: Automatic reconnection with exponential backoff
 
 ### ✅ Enterprise Inventory Operations
+
 - **Stock Management**: Set, increment, decrement operations
 - **Multi-SKU Support**: Manage thousands of products per agent
 - **Threshold Monitoring**: Configurable low-stock alerts
@@ -73,7 +78,7 @@ export class InventoryAgent implements DurableObject, AgentSDK {
   private agentType: 'orchestrator' | 'warehouse' | 'store'
 
   // AgentSDK Mock Implementation for POC
-  private ai: { run: (model: string, messages: any[]) => Promise<{ response: string, usage: any }> }
+  private ai: { run: (model: string, messages: any[]) => Promise<{ response: string; usage: any }> }
   private sql: { exec: (query: string, params?: any[]) => Promise<any> }
   private schedule: { create: (name: string, config: any) => Promise<any> }
 }
@@ -82,6 +87,7 @@ export class InventoryAgent implements DurableObject, AgentSDK {
 ### Key Methods
 
 #### AI-Powered Analysis
+
 ```typescript
 async analyzeInventoryTrends(sku: string): Promise<InventoryInsights> {
   const currentStock = this.inventory.get(sku)?.currentStock || 0
@@ -104,6 +110,7 @@ async analyzeInventoryTrends(sku: string): Promise<InventoryInsights> {
 ```
 
 #### Autonomous Decision Making
+
 ```typescript
 async processLowStockAlert(sku: string, currentStock: number): Promise<void> {
   const insights = await this.analyzeInventoryTrends(sku)
@@ -160,6 +167,7 @@ const id = c.env.FLEET_MANAGER.idFromName(tenantFleetId)
 ### API Endpoints
 
 #### Inventory Management
+
 - `GET /inventory/stock` - Get current inventory
 - `POST /inventory/stock` - Update stock levels
 - `GET /inventory/query` - Query specific items
@@ -167,6 +175,7 @@ const id = c.env.FLEET_MANAGER.idFromName(tenantFleetId)
 - `GET /inventory/alerts` - Get low stock alerts
 
 #### AI Operations
+
 - `GET /ai/analyze?sku=SKU` - AI analysis for specific SKU
 - `GET /ai/forecast` - Generate demand forecasts
 - `GET /ai/insights` - Get AI decision history
@@ -174,13 +183,16 @@ const id = c.env.FLEET_MANAGER.idFromName(tenantFleetId)
 ### UI Components
 
 #### Professional Design System
+
 The UI uses a modern, professional design with:
+
 - **Dark gray/black** color scheme for enterprise feel
 - **White cards** with subtle borders for content separation
 - **Muted icons** and consistent typography
 - **Responsive grid layouts** for all screen sizes
 
 #### Component Architecture
+
 ```
 FleetManagerPage.tsx (Main Container)
 ├── Layout.tsx (Shell with Tailwind CSS)
@@ -197,6 +209,7 @@ FleetManagerPage.tsx (Main Container)
 ## 🔄 Data Flow
 
 ### 1. Stock Update Flow
+
 ```
 User Action → UI Form → JavaScript → WebSocket/HTTP → InventoryAgent
 → Update Inventory Map → Persist to Storage → Broadcast Update
@@ -204,6 +217,7 @@ User Action → UI Form → JavaScript → WebSocket/HTTP → InventoryAgent
 ```
 
 ### 2. AI Decision Flow
+
 ```
 Low Stock Detected → AI Analysis → Generate Insights → Check Urgency
 → Request Human Approval (if needed) → Schedule Workflow → Propagate Decision
@@ -211,6 +225,7 @@ Low Stock Detected → AI Analysis → Generate Insights → Check Urgency
 ```
 
 ### 3. Multi-Tenant Request Flow
+
 ```
 Request → Extract Tenant (subdomain/path) → Create Tenant-specific DO ID
 → Route to Isolated DO Instance → Process Request → Return Response
@@ -219,11 +234,13 @@ Request → Extract Tenant (subdomain/path) → Create Tenant-specific DO ID
 ## 🛡️ Security & Isolation
 
 ### Data Isolation
+
 - **Tenant-level**: Each tenant has completely separate Durable Object instances
 - **Path-level**: Different inventory locations have separate state
 - **Database**: All queries include tenant context for complete isolation
 
 ### Authentication (Future)
+
 - **JWT Integration**: Worker-level authentication middleware
 - **Role-based Access**: Different permissions for agents vs. managers
 - **API Key Support**: For external system integrations
@@ -231,6 +248,7 @@ Request → Extract Tenant (subdomain/path) → Create Tenant-specific DO ID
 ## 📊 Monitoring & Observability
 
 ### Real-time Metrics
+
 - Total inventory items per agent
 - Low stock alert counts
 - AI decision confidence levels
@@ -238,6 +256,7 @@ Request → Extract Tenant (subdomain/path) → Create Tenant-specific DO ID
 - WebSocket connection status
 
 ### Audit Trails
+
 - All inventory transactions logged
 - AI decision history tracked
 - Human approval workflows recorded
@@ -246,12 +265,14 @@ Request → Extract Tenant (subdomain/path) → Create Tenant-specific DO ID
 ## 🚀 Performance Optimizations
 
 ### Edge Computing Benefits
+
 - **Global Distribution**: DOs run close to users worldwide
 - **Zero Cold Starts**: Persistent state eliminates startup delays
 - **Infinite Scale**: Each agent scales independently
 - **Sub-100ms Latency**: Edge processing for real-time responses
 
 ### Efficient State Management
+
 - **In-memory Inventory**: Fast access to current stock levels
 - **Lazy Loading**: Load state only when needed
 - **Persistent Storage**: Automatic persistence with Durable Object storage
@@ -262,6 +283,7 @@ Request → Extract Tenant (subdomain/path) → Create Tenant-specific DO ID
 All core functionality has been thoroughly tested:
 
 ### ✅ API Endpoints
+
 - **Inventory Stock**: `GET /inventory/stock` ✓
 - **Stock Updates**: `POST /inventory/stock` ✓
 - **AI Analysis**: `GET /ai/analyze?sku=SKU` ✓
@@ -269,16 +291,19 @@ All core functionality has been thoroughly tested:
 - **Alert System**: `GET /inventory/alerts` ✓
 
 ### ✅ Multi-Tenant Isolation
+
 - **Demo Tenant**: Different inventory data ✓
 - **Walmart Tenant**: Isolated data store ✓
 - **Cross-tenant Security**: No data leakage ✓
 
 ### ✅ AI Integration
+
 - **LLM Responses**: Working AI analysis ✓
 - **Decision Making**: Intelligent recommendations ✓
 - **Confidence Scoring**: Reliable insights ✓
 
 ### ✅ Real-time Features
+
 - **WebSocket Connections**: Instant updates ✓
 - **Live Inventory**: Real-time stock changes ✓
 - **Alert Broadcasting**: Immediate notifications ✓
@@ -286,18 +311,21 @@ All core functionality has been thoroughly tested:
 ## 🎨 UI/UX Features
 
 ### Professional Theme
+
 - Sleek gray/black design scheme
 - White cards with subtle shadows
 - Consistent iconography using Lucide React
 - Responsive layouts for all devices
 
 ### Interactive Elements
+
 - **Tabbed Interface**: Easy navigation between features
 - **Real-time Updates**: Live data without page refreshes
 - **Quick Actions**: One-click operations for common tasks
 - **Form Validation**: User-friendly error handling
 
 ### Accessibility
+
 - Semantic HTML structure
 - Keyboard navigation support
 - Screen reader compatibility
@@ -310,14 +338,18 @@ See [ROADMAP.md](./ROADMAP.md) for detailed future enhancements.
 ## 📝 Development Notes
 
 ### Current Mock Implementations
+
 For POC purposes, several components use mock implementations:
+
 - **AgentSDK**: Custom interface mocking Cloudflare Agents SDK
 - **AI Responses**: Simulated LLM responses for development
 - **Database Queries**: Mock SQL operations
 - **Workflow Scheduling**: Simulated workflow triggers
 
 ### Production Readiness
+
 To move to production:
+
 1. Replace mock AgentSDK with actual Cloudflare Agents SDK
 2. Configure D1 database bindings
 3. Set up Workers AI model bindings
@@ -327,6 +359,4 @@ To move to production:
 
 ---
 
-*This implementation represents a fully functional proof-of-concept for an enterprise-grade agentic AI inventory system built on Cloudflare's edge computing platform.*
-
-
+_This implementation represents a fully functional proof-of-concept for an enterprise-grade agentic AI inventory system built on Cloudflare's edge computing platform._

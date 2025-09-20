@@ -1,5 +1,6 @@
-import type { FC } from 'hono/jsx'
 import { Card } from './SimpleComponents'
+
+import type { FC } from 'hono/jsx'
 
 interface AgentListProps {
 	currentPath: string
@@ -7,11 +8,11 @@ interface AgentListProps {
 }
 
 export const AgentList: FC<AgentListProps> = ({ currentPath: _currentPath, isAtRoot = false }) => {
-	const title = isAtRoot ? "Locations" : "Sub-Locations"
-	const emptyTitle = isAtRoot ? "No Locations" : "No Sub-Locations"
+	const title = isAtRoot ? 'Locations' : 'Sub-Locations'
+	const emptyTitle = isAtRoot ? 'No Locations' : 'No Sub-Locations'
 	const emptyDescription = isAtRoot
-		? "Create your first location to start managing inventory across your organization."
-		: "Create sub-locations to organize inventory under this location."
+		? 'Create your first location to start managing inventory across your organization.'
+		: 'Create sub-locations to organize inventory under this location.'
 
 	return (
 		<Card title={title}>
@@ -35,7 +36,9 @@ export const AgentList: FC<AgentListProps> = ({ currentPath: _currentPath, isAtR
 						</div>
 					</div>
 					<div class="empty-state-action">
-						<p class="text-small">← Use the form to create your first {isAtRoot ? 'location' : 'sub-location'}</p>
+						<p class="text-small">
+							← Use the form to create your first {isAtRoot ? 'location' : 'sub-location'}
+						</p>
 					</div>
 				</div>
 			</div>

@@ -1,15 +1,16 @@
-import type { FC } from 'hono/jsx'
-import { Layout } from './Layout'
-import { Breadcrumb } from './Breadcrumb'
-import { StatusCard } from './StatusCard'
 import { AgentForm } from './AgentForm'
 import { AgentList } from './AgentList'
-import { CommunicationPanel } from './CommunicationPanel'
-import { InventoryDashboard } from './InventoryDashboard'
 import { AIControlPanel } from './AIControlPanel'
+import { Breadcrumb } from './Breadcrumb'
 import { ChatInterface } from './ChatInterface'
 import { ClientScript } from './ClientScript'
-import { Tabs, Grid } from './SimpleComponents'
+import { CommunicationPanel } from './CommunicationPanel'
+import { InventoryDashboard } from './InventoryDashboard'
+import { Layout } from './Layout'
+import { Grid, Tabs } from './SimpleComponents'
+import { StatusCard } from './StatusCard'
+
+import type { FC } from 'hono/jsx'
 
 interface FleetManagerPageProps {
 	path: string
@@ -26,11 +27,15 @@ export const FleetManagerPage: FC<FleetManagerPageProps> = ({ path, tenantId }) 
 	let parentPath: string | undefined = undefined
 	if (segments.length > 0) {
 		const parentSegments = segments.slice(0, -1)
-		const parentHierarchyPath = parentSegments.length > 0 ? '/' + parentSegments.map(s => encodeURIComponent(s)).join('/') : '/'
+		const parentHierarchyPath =
+			parentSegments.length > 0
+				? '/' + parentSegments.map((s) => encodeURIComponent(s)).join('/')
+				: '/'
 
 		// Add tenant prefix if we have a tenant and it's not demo
 		if (tenantId && tenantId !== 'demo') {
-			parentPath = parentHierarchyPath === '/' ? `/${tenantId}` : `/${tenantId}${parentHierarchyPath}`
+			parentPath =
+				parentHierarchyPath === '/' ? `/${tenantId}` : `/${tenantId}${parentHierarchyPath}`
 		} else {
 			parentPath = parentHierarchyPath
 		}
@@ -49,7 +54,8 @@ export const FleetManagerPage: FC<FleetManagerPageProps> = ({ path, tenantId }) 
 			<div style="background: #f8f8f8; padding: 16px 32px; border-bottom: 1px solid #e5e5e5;">
 				<div class="flex flex-between flex-center">
 					<div class="performance-indicator">
-						<strong>Architecture Stack:</strong> Edge Computing • Multi-Tenant • Real-time State Sync
+						<strong>Architecture Stack:</strong> Edge Computing • Multi-Tenant • Real-time State
+						Sync
 					</div>
 					<div class="performance-indicator">
 						Tenant: {displayTenantId} • Real-time: Active • Edge Deployed
@@ -58,12 +64,14 @@ export const FleetManagerPage: FC<FleetManagerPageProps> = ({ path, tenantId }) 
 			</div>
 
 			{/* Simple Tabs */}
-			<Tabs tabs={[
-				{ id: 'fleet', label: isAtRoot ? 'Locations' : 'Sub-Locations' },
-				{ id: 'inventory', label: 'Inventory Dashboard' },
-				{ id: 'chat', label: 'AI Chat' },
-				{ id: 'ai', label: 'AI Control Center' }
-			]} />
+			<Tabs
+				tabs={[
+					{ id: 'fleet', label: isAtRoot ? 'Locations' : 'Sub-Locations' },
+					{ id: 'inventory', label: 'Inventory Dashboard' },
+					{ id: 'chat', label: 'AI Chat' },
+					{ id: 'ai', label: 'AI Control Center' },
+				]}
+			/>
 
 			{/* Inventory Sources Tab */}
 			<div id="fleet-content" class="tab-content">

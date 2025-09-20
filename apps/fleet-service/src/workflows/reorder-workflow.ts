@@ -1,5 +1,7 @@
 // Reorder Workflow - Multi-step reorder process with approvals and supplier integration
-import { WorkflowEntrypoint, WorkflowEvent, WorkflowStep } from 'cloudflare:workers'
+import { WorkflowEntrypoint } from 'cloudflare:workers'
+
+import type { WorkflowEvent, WorkflowStep } from 'cloudflare:workers'
 
 export interface ReorderWorkflowParams {
 	sku: string
@@ -49,7 +51,7 @@ export class ReorderWorkflow extends WorkflowEntrypoint<unknown, ReorderWorkflow
 					urgency,
 					reasoning,
 					estimatedCost,
-					location
+					location,
 				})
 			})
 
@@ -70,7 +72,7 @@ export class ReorderWorkflow extends WorkflowEntrypoint<unknown, ReorderWorkflow
 		})
 
 		// Step 6: Wait for order confirmation (with timeout)
-		const confirmation = await step.do('wait-for-confirmation', async () => {
+		const _confirmation = await step.do('wait-for-confirmation', async () => {
 			return await this.waitForOrderConfirmation(order.orderId, 300000) // 5 minutes timeout
 		})
 
@@ -81,7 +83,7 @@ export class ReorderWorkflow extends WorkflowEntrypoint<unknown, ReorderWorkflow
 				quantity,
 				urgency,
 				order,
-				location
+				location,
 			})
 		})
 
@@ -102,7 +104,7 @@ export class ReorderWorkflow extends WorkflowEntrypoint<unknown, ReorderWorkflow
 				quantity,
 				order,
 				delivery,
-				location
+				location,
 			})
 		})
 
@@ -111,7 +113,11 @@ export class ReorderWorkflow extends WorkflowEntrypoint<unknown, ReorderWorkflow
 	}
 
 	// Helper methods
-	private async validateReorderRequest(sku: string, quantity: number, location: string): Promise<{valid: boolean; reason?: string}> {
+	private async validateReorderRequest(
+		sku: string,
+		quantity: number,
+		_location: string
+	): Promise<{ valid: boolean; reason?: string }> {
 		// In real implementation, this would check:
 		// - SKU exists and is active
 		// - Quantity is reasonable
@@ -129,16 +135,20 @@ export class ReorderWorkflow extends WorkflowEntrypoint<unknown, ReorderWorkflow
 		return { valid: true }
 	}
 
-	private async requestHumanApproval(request: any): Promise<{approved: boolean; reason?: string}> {
+	private async requestHumanApproval(
+		request: any
+	): Promise<{ approved: boolean; reason?: string }> {
 		// In real implementation, this would:
 		// - Send notification to approvers
 		// - Wait for response via webhook or API
 		// - For POC, auto-approve after delay
 
-		console.log(`Human approval requested for ${request.sku}: ${request.quantity} units ($${request.estimatedCost})`)
+		console.log(
+			`Human approval requested for ${request.sku}: ${request.quantity} units ($${request.estimatedCost})`
+		)
 
 		// Simulate approval delay
-		await new Promise(resolve => setTimeout(resolve, 5000))
+		await new Promise((resolve) => setTimeout(resolve, 5000))
 
 		return { approved: true }
 	}
@@ -152,13 +162,18 @@ export class ReorderWorkflow extends WorkflowEntrypoint<unknown, ReorderWorkflow
 		return {
 			supplierId: 'SUP-001',
 			name: 'Primary Supplier',
-			price: 10.50,
+			price: 10.5,
 			leadTime: urgency === 'critical' ? 1 : 7,
-			reliability: 0.95
+			reliability: 0.95,
 		}
 	}
 
-	private async placeSupplierOrder(supplier: any, sku: string, quantity: number, urgency: string): Promise<SupplierOrder> {
+	private async placeSupplierOrder(
+		supplier: any,
+		sku: string,
+		quantity: number,
+		_urgency: string
+	): Promise<SupplierOrder> {
 		// In real implementation, this would:
 		// - Call supplier API
 		// - Handle authentication and rate limiting
@@ -171,11 +186,13 @@ export class ReorderWorkflow extends WorkflowEntrypoint<unknown, ReorderWorkflow
 			sku,
 			quantity,
 			status: 'pending',
-			estimatedDelivery: new Date(Date.now() + supplier.leadTime * 24 * 60 * 60 * 1000).toISOString()
+			estimatedDelivery: new Date(
+				Date.now() + supplier.leadTime * 24 * 60 * 60 * 1000
+			).toISOString(),
 		}
 	}
 
-	private async waitForOrderConfirmation(orderId: string, timeoutMs: number): Promise<any> {
+	private async waitForOrderConfirmation(orderId: string, _timeoutMs: number): Promise<any> {
 		// In real implementation, this would:
 		// - Poll supplier API for status updates
 		// - Handle webhooks from supplier
@@ -184,12 +201,12 @@ export class ReorderWorkflow extends WorkflowEntrypoint<unknown, ReorderWorkflow
 		console.log(`Waiting for confirmation of order ${orderId}`)
 
 		// Simulate confirmation delay
-		await new Promise(resolve => setTimeout(resolve, 2000))
+		await new Promise((resolve) => setTimeout(resolve, 2000))
 
 		return {
 			orderId,
 			status: 'confirmed',
-			confirmedAt: new Date().toISOString()
+			confirmedAt: new Date().toISOString(),
 		}
 	}
 
@@ -202,13 +219,17 @@ export class ReorderWorkflow extends WorkflowEntrypoint<unknown, ReorderWorkflow
 		console.log(`Sending notifications for order: ${data.sku} x ${data.quantity}`)
 	}
 
-	private async scheduleDeliveryTracking(orderId: string, sku: string, location: string): Promise<void> {
+	private async scheduleDeliveryTracking(
+		_orderId: string,
+		_sku: string,
+		_location: string
+	): Promise<void> {
 		// In real implementation, this would:
 		// - Schedule periodic checks for delivery status
 		// - Set up webhook endpoints for delivery updates
 		// - Configure alerts for delays
 
-		console.log(`Scheduled delivery tracking for order ${orderId}`)
+		console.log(`Scheduled delivery tracking for order ${_orderId}`)
 	}
 
 	private async waitForDelivery(orderId: string, leadTimeMs: number): Promise<any> {
@@ -220,13 +241,13 @@ export class ReorderWorkflow extends WorkflowEntrypoint<unknown, ReorderWorkflow
 		console.log(`Waiting for delivery of order ${orderId}`)
 
 		// Simulate delivery delay
-		await new Promise(resolve => setTimeout(resolve, Math.min(leadTimeMs / 10, 10000)))
+		await new Promise((resolve) => setTimeout(resolve, Math.min(leadTimeMs / 10, 10000)))
 
 		return {
 			orderId,
 			status: 'delivered',
 			deliveredAt: new Date().toISOString(),
-			trackingNumber: `TRK-${orderId}`
+			trackingNumber: `TRK-${orderId}`,
 		}
 	}
 

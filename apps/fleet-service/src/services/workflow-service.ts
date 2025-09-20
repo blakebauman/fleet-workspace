@@ -20,7 +20,7 @@ export interface ForecastWorkflowParams {
 
 export interface SyncWorkflowParams {
 	location: string
-	systems: ('erp' | 'wms' | 'pos')[]
+	systems: Array<'erp' | 'wms' | 'pos'>
 	forceFullSync?: boolean
 	lastSyncTimestamp?: string
 }
@@ -36,7 +36,7 @@ export class WorkflowService {
 			}
 
 			const workflowId = await this.env.REORDER_WORKFLOW.create({
-				params
+				params,
 			})
 
 			console.log(`Triggered reorder workflow: ${workflowId} for ${params.sku}`)
@@ -55,7 +55,7 @@ export class WorkflowService {
 			}
 
 			const workflowId = await this.env.FORECAST_WORKFLOW.create({
-				params
+				params,
 			})
 
 			console.log(`Triggered forecast workflow: ${workflowId} for ${params.location}`)
@@ -74,7 +74,7 @@ export class WorkflowService {
 			}
 
 			const workflowId = await this.env.SYNC_WORKFLOW.create({
-				params
+				params,
 			})
 
 			console.log(`Triggered sync workflow: ${workflowId} for ${params.location}`)
@@ -86,7 +86,10 @@ export class WorkflowService {
 	}
 
 	// Get workflow status
-	async getWorkflowStatus(workflowId: string, workflowType: 'reorder' | 'forecast' | 'sync'): Promise<any> {
+	async getWorkflowStatus(
+		workflowId: string,
+		workflowType: 'reorder' | 'forecast' | 'sync'
+	): Promise<any> {
 		try {
 			let workflow
 			switch (workflowType) {
@@ -116,7 +119,10 @@ export class WorkflowService {
 	}
 
 	// Cancel workflow
-	async cancelWorkflow(workflowId: string, workflowType: 'reorder' | 'forecast' | 'sync'): Promise<void> {
+	async cancelWorkflow(
+		workflowId: string,
+		workflowType: 'reorder' | 'forecast' | 'sync'
+	): Promise<void> {
 		try {
 			let workflow
 			switch (workflowType) {

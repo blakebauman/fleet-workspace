@@ -1,6 +1,8 @@
 // Base FleetManager class with core fleet management functionality
 import { z } from 'zod'
 
+import type { SharedHonoEnv } from '@repo/hono-helpers/src/types'
+
 // Error handling types
 interface APIError {
 	code: string
@@ -25,13 +27,17 @@ export class InventoryError extends Error {
 export const StockUpdateSchema = z.object({
 	sku: z.string().min(1).max(50),
 	quantity: z.number().int().min(0),
-	operation: z.enum(['set', 'increment', 'decrement'])
+	operation: z.enum(['set', 'increment', 'decrement']),
 })
 
-export const AgentNameSchema = z.string()
+export const AgentNameSchema = z
+	.string()
 	.min(1)
 	.max(32)
-	.regex(/^[a-zA-Z0-9\s_-]+$/, 'Agent name can only contain alphanumeric characters, spaces, dashes, and underscores')
+	.regex(
+		/^[a-zA-Z0-9\s_-]+$/,
+		'Agent name can only contain alphanumeric characters, spaces, dashes, and underscores'
+	)
 
 // Message types for WebSocket communication
 export type FleetMessage =
@@ -48,13 +54,30 @@ export type FleetMessage =
 	| { type: 'agentDeleted'; name: string }
 	| { type: 'message'; from: string; content: string }
 	// INVENTORY POC EXTENSIONS
-	| { type: 'stockUpdate'; sku: string; quantity: number; operation: 'set' | 'increment' | 'decrement' }
+	| {
+			type: 'stockUpdate'
+			sku: string
+			quantity: number
+			operation: 'set' | 'increment' | 'decrement'
+	  }
 	| { type: 'stockQuery'; sku: string }
 	| { type: 'stockResponse'; sku: string; quantity: number; location: string }
-	| { type: 'lowStockAlert'; sku: string; currentStock: number; threshold: number; location: string }
+	| {
+			type: 'lowStockAlert'
+			sku: string
+			currentStock: number
+			threshold: number
+			location: string
+	  }
 	| { type: 'inventorySync'; updates: InventoryUpdate[] }
 	| { type: 'chatMessage'; content: string; userId?: string }
-	| { type: 'chatResponse'; role: 'user' | 'assistant' | 'system'; content: string; timestamp: string; metadata?: any }
+	| {
+			type: 'chatResponse'
+			role: 'user' | 'assistant' | 'system'
+			content: string
+			timestamp: string
+			metadata?: any
+	  }
 	| { type: 'chatStats'; messagesToday: number; actionsExecuted: number; successRate: number }
 	| { type: 'testPersistence' }
 	| { type: 'testPersistence25s' }
@@ -98,7 +121,7 @@ export interface FleetState {
 }
 
 // Environment interface
-export interface Env {
+export interface Env extends SharedHonoEnv {
 	FLEET_MANAGER: DurableObjectNamespace
 	AI?: any
 	INVENTORY_VECTORS?: any
@@ -142,8 +165,7 @@ export abstract class BaseFleetManager implements DurableObject {
 
 		// ✅ Use blockConcurrencyWhile to initialize from storage
 		// This ensures no requests are delivered until initialization completes
-		// eslint-disable-next-line @typescript-eslint/no-floating-promises
-		ctx.blockConcurrencyWhile(async () => {
+		void ctx.blockConcurrencyWhile(async () => {
 			console.log('[INIT] Initializing Durable Object from storage...')
 			// Load state for the default path - will be updated when fetch() sets currentPath
 			await this.loadStateFromStorage()
@@ -160,34 +182,45 @@ export abstract class BaseFleetManager implements DurableObject {
 	// Abstract methods to be implemented by subclasses
 	abstract fetch(request: Request): Promise<Response>
 	abstract webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void>
-	abstract webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void>
+	abstract webSocketClose(
+		ws: WebSocket,
+		code: number,
+		reason: string,
+		wasClean: boolean
+	): Promise<void>
 	abstract webSocketError(ws: WebSocket, error: unknown): Promise<void>
 
 	// Error handling methods
 	protected handleError(error: unknown): Response {
 		if (error instanceof InventoryError) {
-			return Response.json({
-				code: error.code,
-				message: error.message,
-				details: error.details,
-				timestamp: new Date().toISOString()
-			} as APIError, { status: error.statusCode })
+			return Response.json(
+				{
+					code: error.code,
+					message: error.message,
+					details: error.details,
+					timestamp: new Date().toISOString(),
+				} as APIError,
+				{ status: error.statusCode }
+			)
 		}
 
 		console.error('Unexpected error:', error)
-		return Response.json({
-			code: 'INTERNAL_ERROR',
-			message: 'An unexpected error occurred',
-			timestamp: new Date().toISOString()
-		} as APIError, { status: 500 })
+		return Response.json(
+			{
+				code: 'INTERNAL_ERROR',
+				message: 'An unexpected error occurred',
+				timestamp: new Date().toISOString(),
+			} as APIError,
+			{ status: 500 }
+		)
 	}
 
-	protected validateInput<T>(schema: z.ZodSchema<T>, data: unknown): T {
+	protected validateInput<T>(schema: z.ZodType<T>, data: unknown): T {
 		try {
 			return schema.parse(data)
 		} catch (error: unknown) {
 			if (error instanceof z.ZodError) {
-				throw new InventoryError('VALIDATION_ERROR', 'Invalid input', 400, error.errors)
+				throw new InventoryError('VALIDATION_ERROR', 'Invalid input', 400, error.issues)
 			}
 			throw error
 		}
@@ -206,7 +239,7 @@ export abstract class BaseFleetManager implements DurableObject {
 	protected setCache<T>(key: string, data: T, ttlMs: number = 300000): void {
 		this.cache.set(key, {
 			data,
-			expires: Date.now() + ttlMs
+			expires: Date.now() + ttlMs,
 		})
 	}
 
@@ -224,11 +257,13 @@ export abstract class BaseFleetManager implements DurableObject {
 				CREATE TABLE IF NOT EXISTS schema_version (
 					version INTEGER PRIMARY KEY
 				);
-			`);
+			`)
 
 			// Check current schema version
-			const versionResult = this.sqlStorage.exec("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1");
-			const currentVersion = (versionResult.toArray()[0] as any)?.version || 0;
+			const versionResult = this.sqlStorage.exec(
+				'SELECT version FROM schema_version ORDER BY version DESC LIMIT 1'
+			)
+			const currentVersion = (versionResult.toArray()[0] as any)?.version || 0
 			console.log('Current schema version:', currentVersion)
 
 			// Apply migrations incrementally
@@ -324,10 +359,10 @@ export abstract class BaseFleetManager implements DurableObject {
 					CREATE INDEX IF NOT EXISTS idx_chat_stats_location_date ON chat_statistics(location, date);
 
 					INSERT INTO schema_version (version) VALUES (1);
-				`);
+				`)
 			}
 
-			console.log('SQLite schema initialized successfully');
+			console.log('SQLite schema initialized successfully')
 
 			// Verify tables were created
 			const tablesResult = this.sqlStorage.exec(`
@@ -337,7 +372,10 @@ export abstract class BaseFleetManager implements DurableObject {
 			console.log('Created tables:', tables)
 		} catch (error) {
 			console.error('Failed to initialize schema:', error)
-			console.error('Schema error details:', error instanceof Error ? error.message : 'Unknown error')
+			console.error(
+				'Schema error details:',
+				error instanceof Error ? error.message : 'Unknown error'
+			)
 		}
 	}
 
@@ -347,13 +385,18 @@ export abstract class BaseFleetManager implements DurableObject {
 			console.log(`[INIT] Loading state from storage for path: ${this.currentPath}`)
 
 			// Load fleet state
-			const stateResult = this.sqlStorage.exec(`
+			const stateResult = this.sqlStorage.exec(
+				`
 				SELECT * FROM fleet_state WHERE id = ?
-			`, this.currentPath)
+			`,
+				this.currentPath
+			)
 
 			const stateRow = stateResult.toArray()[0] as any
 			if (stateRow) {
-				console.log(`[INIT] Found persisted state: counter=${stateRow.counter}, agents=${stateRow.agents}`)
+				console.log(
+					`[INIT] Found persisted state: counter=${stateRow.counter}, agents=${stateRow.agents}`
+				)
 				this.state.counter = stateRow.counter || 0
 				this.state.agentType = stateRow.agent_type || 'orchestrator'
 
@@ -366,9 +409,12 @@ export abstract class BaseFleetManager implements DurableObject {
 			}
 
 			// Load inventory items
-			const inventoryResult = this.sqlStorage.exec(`
+			const inventoryResult = this.sqlStorage.exec(
+				`
 				SELECT * FROM inventory_items WHERE location = ?
-			`, this.currentPath)
+			`,
+				this.currentPath
+			)
 
 			const inventoryRows = inventoryResult.toArray()
 			for (const row of inventoryRows) {
@@ -377,7 +423,7 @@ export abstract class BaseFleetManager implements DurableObject {
 					name: row.name as string,
 					currentStock: row.current_stock as number,
 					lowStockThreshold: row.low_stock_threshold as number,
-					lastUpdated: new Date().toISOString()
+					lastUpdated: new Date().toISOString(),
 				}
 				this.state.inventory.set(item.sku, item)
 			}
@@ -395,11 +441,14 @@ export abstract class BaseFleetManager implements DurableObject {
 	// Save state to SQLite storage
 	protected async saveState(): Promise<void> {
 		try {
-			console.log(`[FIXED] Saving state for location: ${this.currentPath} (${this.state.agents.size} agents, counter: ${this.state.counter})`)
+			console.log(
+				`[FIXED] Saving state for location: ${this.currentPath} (${this.state.agents.size} agents, counter: ${this.state.counter})`
+			)
 
 			// Save fleet state for this specific location
 			const timestamp = Math.floor(Date.now() / 1000)
-			this.sqlStorage.exec(`
+			this.sqlStorage.exec(
+				`
 				INSERT OR REPLACE INTO fleet_state (id, counter, agents, agent_type, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?, ?)
 			`,
@@ -408,13 +457,14 @@ export abstract class BaseFleetManager implements DurableObject {
 				JSON.stringify(Array.from(this.state.agents)),
 				this.state.agentType,
 				timestamp, // created_at
-				timestamp  // updated_at
+				timestamp // updated_at
 			)
 
 			// Save inventory items
 			for (const [_sku, item] of this.state.inventory) {
 				const itemTimestamp = Math.floor(Date.now() / 1000)
-				this.sqlStorage.exec(`
+				this.sqlStorage.exec(
+					`
 					INSERT OR REPLACE INTO inventory_items
 					(sku, name, current_stock, low_stock_threshold, location, created_at, updated_at)
 					VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -425,10 +475,9 @@ export abstract class BaseFleetManager implements DurableObject {
 					item.lowStockThreshold,
 					this.currentPath,
 					itemTimestamp, // created_at
-					itemTimestamp  // updated_at
+					itemTimestamp // updated_at
 				)
 			}
-
 		} catch (error) {
 			console.error('Failed to save state:', error)
 		}
@@ -484,12 +533,13 @@ export abstract class BaseFleetManager implements DurableObject {
 			from_agent: fromAgent,
 			to_agent: toAgent,
 			content,
-			message_type: messageType
+			message_type: messageType,
 		}
 
 		try {
 			// Store in SQLite
-			this.sqlStorage.exec(`
+			this.sqlStorage.exec(
+				`
 				INSERT INTO stored_messages (id, timestamp, from_agent, to_agent, content, message_type, location)
 				VALUES (?, ?, ?, ?, ?, ?, ?)
 			`,

@@ -1,9 +1,11 @@
 // Inventory Sync Workflow - Multi-step sync with external systems (ERP, WMS, POS)
-import { WorkflowEntrypoint, WorkflowEvent, WorkflowStep } from 'cloudflare:workers'
+import { WorkflowEntrypoint } from 'cloudflare:workers'
+
+import type { WorkflowEvent, WorkflowStep } from 'cloudflare:workers'
 
 export interface SyncWorkflowParams {
 	location: string
-	systems: ('erp' | 'wms' | 'pos')[]
+	systems: Array<'erp' | 'wms' | 'pos'>
 	forceFullSync?: boolean
 	lastSyncTimestamp?: string
 }
@@ -23,7 +25,9 @@ export class InventorySyncWorkflow extends WorkflowEntrypoint<unknown, SyncWorkf
 	async run(event: Readonly<WorkflowEvent<SyncWorkflowParams>>, step: WorkflowStep) {
 		const { location, systems, forceFullSync, lastSyncTimestamp } = event.payload
 
-		console.log(`Starting inventory sync workflow for location: ${location}, systems: ${systems.join(', ')}`)
+		console.log(
+			`Starting inventory sync workflow for location: ${location}, systems: ${systems.join(', ')}`
+		)
 
 		// Step 1: Validate sync requirements
 		const validation = await step.do('validate-sync-requirements', async () => {
@@ -36,7 +40,12 @@ export class InventorySyncWorkflow extends WorkflowEntrypoint<unknown, SyncWorkf
 
 		// Step 2: Determine sync strategy
 		const syncStrategy = await step.do('determine-sync-strategy', async () => {
-			return await this.determineSyncStrategy(location, systems, forceFullSync || false, lastSyncTimestamp)
+			return await this.determineSyncStrategy(
+				location,
+				systems,
+				forceFullSync || false,
+				lastSyncTimestamp
+			)
 		})
 
 		// Step 3: Sync with each system in parallel
@@ -55,7 +64,7 @@ export class InventorySyncWorkflow extends WorkflowEntrypoint<unknown, SyncWorkf
 		})
 
 		// Step 5: Update local inventory
-		const localUpdate = await step.do('update-local-inventory', async () => {
+		const _localUpdate = await step.do('update-local-inventory', async () => {
 			return await this.updateLocalInventory(syncResults, conflictResolution, location)
 		})
 
@@ -83,12 +92,15 @@ export class InventorySyncWorkflow extends WorkflowEntrypoint<unknown, SyncWorkf
 		return {
 			status: 'completed',
 			results: syncResults,
-			totalRecordsProcessed: syncResults.reduce((sum, r) => sum + r.recordsProcessed, 0)
+			totalRecordsProcessed: syncResults.reduce((sum, r) => sum + r.recordsProcessed, 0),
 		}
 	}
 
 	// Helper methods
-	private async validateSyncRequirements(location: string, systems: string[]): Promise<{valid: boolean; reason?: string}> {
+	private async validateSyncRequirements(
+		location: string,
+		systems: string[]
+	): Promise<{ valid: boolean; reason?: string }> {
 		// In real implementation, this would:
 		// - Check system availability
 		// - Validate credentials
@@ -104,7 +116,12 @@ export class InventorySyncWorkflow extends WorkflowEntrypoint<unknown, SyncWorkf
 		return { valid: true }
 	}
 
-	private async determineSyncStrategy(location: string, systems: string[], forceFullSync: boolean, lastSyncTimestamp?: string): Promise<any> {
+	private async determineSyncStrategy(
+		location: string,
+		systems: string[],
+		forceFullSync: boolean,
+		lastSyncTimestamp?: string
+	): Promise<any> {
 		// In real implementation, this would:
 		// - Analyze last sync results
 		// - Check for system-specific requirements
@@ -117,11 +134,16 @@ export class InventorySyncWorkflow extends WorkflowEntrypoint<unknown, SyncWorkf
 			type: forceFullSync ? 'full' : 'incremental',
 			batchSize: 1000,
 			timeout: 300000, // 5 minutes
-			lastSyncTimestamp: lastSyncTimestamp || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+			lastSyncTimestamp:
+				lastSyncTimestamp || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
 		}
 	}
 
-	private async syncWithSystem(system: string, location: string, strategy: any): Promise<SyncResult> {
+	private async syncWithSystem(
+		system: string,
+		location: string,
+		_strategy: any
+	): Promise<SyncResult> {
 		const startTime = Date.now()
 
 		try {
@@ -135,7 +157,7 @@ export class InventorySyncWorkflow extends WorkflowEntrypoint<unknown, SyncWorkf
 			// - Manage rate limits
 
 			// Simulate sync process
-			await new Promise(resolve => setTimeout(resolve, 2000))
+			await new Promise((resolve) => setTimeout(resolve, 2000))
 
 			const duration = Date.now() - startTime
 
@@ -147,7 +169,7 @@ export class InventorySyncWorkflow extends WorkflowEntrypoint<unknown, SyncWorkf
 				recordsCreated: 25,
 				recordsSkipped: 5,
 				errors: [],
-				duration
+				duration,
 			}
 		} catch (error) {
 			const duration = Date.now() - startTime
@@ -160,7 +182,7 @@ export class InventorySyncWorkflow extends WorkflowEntrypoint<unknown, SyncWorkf
 				recordsCreated: 0,
 				recordsSkipped: 0,
 				errors: [error instanceof Error ? error.message : 'Unknown error'],
-				duration
+				duration,
 			}
 		}
 	}
@@ -177,11 +199,15 @@ export class InventorySyncWorkflow extends WorkflowEntrypoint<unknown, SyncWorkf
 		return {
 			conflictsFound: 3,
 			conflictsResolved: 2,
-			conflictsRequiringManualReview: 1
+			conflictsRequiringManualReview: 1,
 		}
 	}
 
-	private async updateLocalInventory(syncResults: SyncResult[], conflictResolution: any, location: string): Promise<any> {
+	private async updateLocalInventory(
+		syncResults: SyncResult[],
+		conflictResolution: any,
+		location: string
+	): Promise<any> {
 		// In real implementation, this would:
 		// - Update local database with synced data
 		// - Maintain audit trail
@@ -192,23 +218,23 @@ export class InventorySyncWorkflow extends WorkflowEntrypoint<unknown, SyncWorkf
 
 		return {
 			recordsUpdated: syncResults.reduce((sum, r) => sum + r.recordsUpdated, 0),
-			recordsCreated: syncResults.reduce((sum, r) => sum + r.recordsCreated, 0)
+			recordsCreated: syncResults.reduce((sum, r) => sum + r.recordsCreated, 0),
 		}
 	}
 
-	private async validateSyncIntegrity(location: string, syncResults: SyncResult[]): Promise<any> {
+	private async validateSyncIntegrity(_location: string, _syncResults: SyncResult[]): Promise<any> {
 		// In real implementation, this would:
 		// - Run data integrity checks
 		// - Validate business rules
 		// - Check for data anomalies
 		// - Generate integrity report
 
-		console.log(`Validating sync integrity for location: ${location}`)
+		console.log(`Validating sync integrity for location: ${_location}`)
 
 		return {
 			integrityScore: 0.98,
 			issuesFound: 2,
-			issuesResolved: 1
+			issuesResolved: 1,
 		}
 	}
 
@@ -222,23 +248,31 @@ export class InventorySyncWorkflow extends WorkflowEntrypoint<unknown, SyncWorkf
 		console.log(`Sending sync notifications for location: ${location}`)
 	}
 
-	private async updateSyncMetadata(location: string, syncResults: SyncResult[], integrityCheck: any): Promise<void> {
+	private async updateSyncMetadata(
+		_location: string,
+		_syncResults: SyncResult[],
+		_integrityCheck: any
+	): Promise<void> {
 		// In real implementation, this would:
 		// - Update last sync timestamp
 		// - Store sync statistics
 		// - Update system health metrics
 		// - Maintain sync history
 
-		console.log(`Updating sync metadata for location: ${location}`)
+		console.log(`Updating sync metadata for location: ${_location}`)
 	}
 
-	private async scheduleNextSync(location: string, systems: string[], syncResults: SyncResult[]): Promise<void> {
+	private async scheduleNextSync(
+		_location: string,
+		_systems: string[],
+		_syncResults: SyncResult[]
+	): Promise<void> {
 		// In real implementation, this would:
 		// - Determine next sync time based on results
 		// - Adjust frequency based on data volatility
 		// - Handle system-specific schedules
 		// - Manage resource allocation
 
-		console.log(`Scheduling next sync for location: ${location}`)
+		console.log(`Scheduling next sync for location: ${_location}`)
 	}
 }

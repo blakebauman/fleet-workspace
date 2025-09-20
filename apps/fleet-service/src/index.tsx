@@ -3,9 +3,10 @@ import { useWorkersLogger } from 'workers-tagged-logger'
 
 import { useNotFound, useOnError } from '@repo/hono-helpers'
 
-import type { App } from './context'
-import { InventoryAgent } from './durable-objects/fleet-manager'
 import { FleetManagerPage } from './components/FleetManagerPage'
+import { InventoryAgent } from './durable-objects/fleet-manager'
+
+import type { App } from './context'
 
 // Export for Durable Object binding
 export { InventoryAgent }
@@ -23,7 +24,6 @@ const app = new Hono<App>()
 
 	.onError(useOnError())
 	.notFound(useNotFound())
-
 
 	// Root fleet manager UI
 	.get('/', async (c) => {
@@ -90,7 +90,8 @@ const app = new Hono<App>()
 		// Exclude API endpoints like /messages, /state, /increment, etc.
 		const url = new URL(c.req.url)
 		const pathWithoutQuery = tenantPath || url.pathname
-		const isApiRequest = pathWithoutQuery.includes('/api/') ||
+		const isApiRequest =
+			pathWithoutQuery.includes('/api/') ||
 			pathWithoutQuery.endsWith('/messages') ||
 			pathWithoutQuery.endsWith('/state') ||
 			pathWithoutQuery.endsWith('/increment') ||
@@ -116,7 +117,22 @@ const app = new Hono<App>()
 		let apiEndpoint = '/'
 
 		// Check if this is an API call by looking for known endpoints
-		const apiEndpoints = ['/messages', '/state', '/increment', '/delete-subtree', '/message', '/inventory/stock', '/inventory/query', '/inventory/sync', '/inventory/alerts', '/ai/analyze', '/ai/forecast', '/ai/insights', '/debug/locations', '/debug/db']
+		const apiEndpoints = [
+			'/messages',
+			'/state',
+			'/increment',
+			'/delete-subtree',
+			'/message',
+			'/inventory/stock',
+			'/inventory/query',
+			'/inventory/sync',
+			'/inventory/alerts',
+			'/ai/analyze',
+			'/ai/forecast',
+			'/ai/insights',
+			'/debug/locations',
+			'/debug/db',
+		]
 		for (const endpoint of apiEndpoints) {
 			if (pathWithoutQuery.endsWith(endpoint)) {
 				fleetPath = pathWithoutQuery.substring(0, pathWithoutQuery.length - endpoint.length)
@@ -145,7 +161,9 @@ const app = new Hono<App>()
 
 		// Create tenant-specific Durable Object ID for complete isolation
 		const tenantFleetId = `${tenantId}:${fleetPath}`
-		console.log(`[TENANT] Request: ${pathWithoutQuery} -> Tenant: "${tenantId}", Fleet: "${fleetPath}", API: "${apiEndpoint}"`)
+		console.log(
+			`[TENANT] Request: ${pathWithoutQuery} -> Tenant: "${tenantId}", Fleet: "${fleetPath}", API: "${apiEndpoint}"`
+		)
 		console.log(`[DO] Creating DO for tenant-fleet: ${tenantFleetId}`)
 		console.log(`[HEADERS] Setting x-fleet-path to: "${fleetPath}"`)
 
@@ -156,7 +174,9 @@ const app = new Hono<App>()
 		const targetUrl = new URL(c.req.url)
 		targetUrl.pathname = apiEndpoint
 
-		console.log(`Forwarding ${c.req.method} ${targetUrl.pathname}${targetUrl.search} to DO for fleet path: ${fleetPath}`)
+		console.log(
+			`Forwarding ${c.req.method} ${targetUrl.pathname}${targetUrl.search} to DO for fleet path: ${fleetPath}`
+		)
 
 		// Create a new request with path information in headers
 		const newRequest = new Request(targetUrl.toString(), {
@@ -164,9 +184,9 @@ const app = new Hono<App>()
 			headers: {
 				...Object.fromEntries(c.req.raw.headers.entries()),
 				'x-fleet-path': fleetPath,
-				'x-tenant-id': tenantId || 'demo'
+				'x-tenant-id': tenantId || 'demo',
 			},
-			body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? c.req.raw.body : undefined
+			body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? c.req.raw.body : undefined,
 		})
 
 		return stub.fetch(newRequest)
@@ -190,8 +210,8 @@ async function handleWebSocketUpgrade(c: any, path: string, tenantId: string): P
 		headers: {
 			...Object.fromEntries(c.req.raw.headers.entries()),
 			'x-fleet-path': fleetPath,
-			'x-tenant-id': tenantId
-		}
+			'x-tenant-id': tenantId,
+		},
 	})
 
 	// Forward the WebSocket upgrade request to the Durable Object
@@ -206,7 +226,7 @@ export { InventorySyncWorkflow } from './workflows/inventory-sync-workflow'
 // Default export with Hono app and queue handler
 export default {
 	fetch: app.fetch,
-	async queue(batch: any, env: any) {
+	async queue(batch: any, _env: any) {
 		console.log('Processing queue batch:', batch)
 
 		// Handle different queue types based on the queue name
@@ -241,5 +261,5 @@ export default {
 				// The message will be retried according to the queue configuration
 			}
 		}
-	}
+	},
 }
