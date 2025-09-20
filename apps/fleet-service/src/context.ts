@@ -2,7 +2,9 @@ import type { HonoApp } from '@repo/hono-helpers'
 import type { SharedHonoEnv, SharedHonoVariables } from '@repo/hono-helpers/src/types'
 
 export type Env = SharedHonoEnv & {
-	// add additional Bindings here
+	FLEET_MANAGER: DurableObjectNamespace
+	AI: Ai
+	INVENTORY_VECTORS?: VectorizeIndex
 }
 
 /** Variables can be extended */

@@ -9,6 +9,9 @@ export default defineWorkersProject({
 					bindings: {
 						ENVIRONMENT: 'VITEST',
 					},
+					durableObjects: {
+						FLEET_MANAGER: 'FleetManager',
+					},
 				},
 			},
 		},

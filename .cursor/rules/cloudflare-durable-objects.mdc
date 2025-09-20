@@ -1,0 +1,657 @@
+---
+alwaysApply: true
+description: Cloudflare Durable Objects
+---
+# Cloudflare Durable Objects
+
+## 🚨 CRITICAL: Durable Objects Fundamentals
+
+**Durable Objects provide:**
+- **Strongly consistent, transactional storage** with SQLite or KV backends
+- **Global uniqueness** - each object instance exists in exactly one location worldwide
+- **Automatic failover** and persistence across restarts
+- **Server-Sent Events (SSE) support** for real-time applications
+- **Point-in-time recovery (PITR)** for SQLite-backed objects
+
+## Essential Architecture Patterns
+
+### ✅ CORRECT: SQLite-Backed Durable Objects (Recommended)
+
+```typescript
+// Use SQLite backend for new Durable Objects (preferred)
+export class WorkspaceDurableObject {
+  private storage: DurableObjectStorage;
+  private sql: SqlStorage;
+  private connections: Set<WebSocket>;
+  private workspaceId: string;
+
+  constructor(state: DurableObjectState, env: Env) {
+    this.storage = state.storage;
+    this.sql = state.storage.sql;  // ✅ SQLite backend
+    this.connections = new Set();
+    this.workspaceId = state.id.toString();
+
+    // Initialize schema on first run
+    this.initializeSchema();
+  }
+
+  private initializeSchema() {
+    // ✅ Use SQL DDL for schema creation
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS workspace_meta (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        created_at INTEGER DEFAULT (unixepoch()) NOT NULL
+      );
+
+      -- Create indexes for performance
+      CREATE INDEX IF NOT EXISTS idx_workspace_created_at
+        ON workspace_meta(created_at);
+    `);
+  }
+}
+```
+
+### ❌ AVOID: KV-Only Backend (Legacy)
+
+```typescript
+// ❌ KV backend is legacy - use SQLite instead
+export class LegacyDurableObject {
+  constructor(state: DurableObjectState, env: Env) {
+    // Don't do this for new objects
+    this.storage = state.storage; // KV-only operations
+  }
+}
+```
+
+## Storage API Usage Patterns
+
+### SQL Operations (SQLite Backend)
+
+```typescript
+// ✅ CORRECT: Use SQL for complex queries and transactions
+class DataProcessor extends DurableObject {
+  private sql: SqlStorage;
+
+  constructor(state: DurableObjectState, env: Env) {
+    super(state, env);
+    this.sql = state.storage.sql;
+  }
+
+  async createRecord(data: Record<string, unknown>) {
+    // ✅ Use parameterized queries to prevent SQL injection
+    const result = this.sql.exec(`
+      INSERT INTO records (id, data, created_at)
+      VALUES (?, ?, ?)
+    `,
+      crypto.randomUUID(),
+      JSON.stringify(data),
+      Math.floor(Date.now() / 1000)
+    );
+
+    return result.meta.last_row_id;
+  }
+
+  async getRecords(limit = 10) {
+    // ✅ Use LIMIT for pagination
+    const result = this.sql.exec(`
+      SELECT * FROM records
+      ORDER BY created_at DESC
+      LIMIT ?
+    `, limit);
+
+    return result.toArray();
+  }
+
+  async updateWithTransaction(updates: Array<{id: string, data: any}>) {
+    // ✅ Use transactionSync for atomic operations
+    return this.storage.transactionSync(() => {
+      for (const update of updates) {
+        this.sql.exec(`
+          UPDATE records
+          SET data = ?, updated_at = ?
+          WHERE id = ?
+        `,
+          JSON.stringify(update.data),
+          Math.floor(Date.now() / 1000),
+          update.id
+        );
+      }
+    });
+  }
+}
+```
+
+### KV Operations (Available on both backends)
+
+```typescript
+// ✅ Use KV operations for simple key-value storage
+class ConfigManager extends DurableObject {
+  async setConfig(key: string, value: any) {
+    // ✅ KV operations work on both SQLite and KV backends
+    await this.ctx.storage.put(key, value);
+  }
+
+  async getConfig(key: string) {
+    return await this.ctx.storage.get(key);
+  }
+
+  async listConfigs(prefix?: string) {
+    const options = prefix ? { prefix } : {};
+    return await this.ctx.storage.list(options);
+  }
+
+  async deleteConfig(key: string) {
+    return await this.ctx.storage.delete(key);
+  }
+}
+```
+
+## Server-Sent Events (SSE) Integration Patterns
+
+### ✅ CORRECT: SSE Management
+
+```typescript
+export class RealtimeDurableObject extends DurableObject {
+  private connections: Set<ReadableStreamDefaultController>;
+
+  constructor(state: DurableObjectState, env: Env) {
+    super(state, env);
+    this.connections = new Set();
+  }
+
+  async fetch(request: Request) {
+    const url = new URL(request.url);
+
+    // ✅ Handle SSE requests
+    if (url.pathname.endsWith('/events')) {
+      return this.handleSSE(request);
+    }
+
+    return this.handleHttp(request);
+  }
+
+  private async handleSSE(request: Request) {
+    // ✅ Create SSE stream
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    const encoder = new TextEncoder();
+
+    // ✅ Track connection for cleanup
+    this.connections.add(writer);
+
+    // ✅ Send initial connection event
+    await writer.write(encoder.encode(`data: ${JSON.stringify({
+      type: "CONNECTED",
+      timestamp: Date.now()
+    })}\n\n`));
+
+    // ✅ Handle connection cleanup
+    request.signal.addEventListener('abort', () => {
+      this.connections.delete(writer);
+      writer.close();
+    });
+
+    // ✅ Return SSE response
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Cache-Control'
+      }
+    });
+  }
+
+  // ✅ Broadcast helper method for SSE
+  private async broadcast(message: unknown) {
+    const encoder = new TextEncoder();
+    const data = `data: ${JSON.stringify(message)}\n\n`;
+
+    for (const writer of this.connections) {
+      try {
+        await writer.write(encoder.encode(data));
+      } catch (error) {
+        console.error("Failed to send SSE message:", error);
+        this.connections.delete(writer);
+      }
+    }
+  }
+
+  // ✅ Send specific event to all clients
+  private async sendEvent(type: string, data: unknown) {
+    await this.broadcast({
+      type,
+      data,
+      timestamp: Date.now()
+    });
+  }
+}
+```
+
+## Client-Side SSE Integration
+
+### ✅ CORRECT: SSE Client Implementation
+
+```typescript
+// Client-side SSE connection
+class SSEConnection {
+  private eventSource: EventSource | null = null;
+  private reconnectDelay = 1000;
+  private maxReconnectDelay = 30000;
+
+  connect(workspaceId: string) {
+    const url = `/sse/workspaces/${workspaceId}/events`;
+    this.eventSource = new EventSource(url);
+
+    this.eventSource.onopen = () => {
+      console.log('SSE connection opened');
+      this.reconnectDelay = 1000; // Reset delay on successful connection
+    };
+
+    this.eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        this.handleMessage(data);
+      } catch (error) {
+        console.error('Failed to parse SSE message:', error);
+      }
+    };
+
+    this.eventSource.onerror = (error) => {
+      console.error('SSE connection error:', error);
+      this.handleReconnect();
+    };
+  }
+
+  private handleMessage(data: { type: string; data: unknown; timestamp: number }) {
+    switch (data.type) {
+      case 'CONNECTED':
+        console.log('Connected to workspace updates');
+        break;
+      case 'DATA_UPDATED':
+        this.onDataUpdate(data.data);
+        break;
+      case 'CONFIG_CHANGED':
+        this.onConfigChange(data.data);
+        break;
+      default:
+        console.log('Unknown SSE event type:', data.type);
+    }
+  }
+
+  private handleReconnect() {
+    if (this.eventSource) {
+      this.eventSource.close();
+    }
+
+    setTimeout(() => {
+      this.connect(workspaceId);
+      this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay);
+    }, this.reconnectDelay);
+  }
+
+  disconnect() {
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+  }
+
+  // Override these methods in your implementation
+  onDataUpdate(data: unknown) {
+    // Handle data updates
+  }
+
+  onConfigChange(data: unknown) {
+    // Handle config changes
+  }
+}
+```
+
+### ✅ CORRECT: React Hook for SSE
+
+```typescript
+import { useEffect, useRef, useState } from 'react';
+
+export function useSSE(workspaceId: string) {
+  const [isConnected, setIsConnected] = useState(false);
+  const [lastMessage, setLastMessage] = useState<unknown>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    const eventSource = new EventSource(`/sse/workspaces/${workspaceId}/events`);
+    eventSourceRef.current = eventSource;
+
+    eventSource.onopen = () => setIsConnected(true);
+    eventSource.onerror = () => setIsConnected(false);
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        setLastMessage(data);
+      } catch (error) {
+        console.error('Failed to parse SSE message:', error);
+      }
+    };
+
+    return () => {
+      eventSource.close();
+      eventSourceRef.current = null;
+    };
+  }, [workspaceId]);
+
+  return { isConnected, lastMessage };
+}
+```
+
+## Wrangler Configuration
+
+### ✅ CORRECT: Durable Objects Setup
+
+```jsonc
+// wrangler.jsonc
+{
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "WORKSPACE",
+        "class_name": "WorkspaceDurableObject"
+      }
+    ]
+  },
+  // ✅ SQLite migrations
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["WorkspaceDurableObject"]
+    },
+    {
+      "tag": "v2",
+      "deleted_classes": ["OldDurableObject"]
+    }
+  ]
+}
+```
+
+### Environment Interface
+
+```typescript
+// ✅ Type your environment properly
+export interface Env {
+  WORKSPACE: DurableObjectNamespace;
+  R2: R2Bucket;
+  DB: D1Database;
+  // Other bindings...
+}
+```
+
+## Worker Integration Patterns
+
+### ✅ CORRECT: Routing to Durable Objects
+
+```typescript
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const url = new URL(request.url);
+
+    // ✅ Route specific paths to Durable Objects
+    if (url.pathname.startsWith("/api/workspaces/")) {
+      const pathParts = url.pathname.split("/");
+      const workspaceId = pathParts[3]; // /api/workspaces/{workspaceId}/...
+
+      if (!workspaceId) {
+        return new Response("Workspace ID required", { status: 400 });
+      }
+
+      // ✅ Get Durable Object instance by name
+      const doId = env.WORKSPACE.idFromName(workspaceId);
+      const doInstance = env.WORKSPACE.get(doId);
+
+      // ✅ Forward request to Durable Object
+      const subPath = "/" + pathParts.slice(4).join("/");
+      const doRequest = new Request(new URL(subPath, request.url), {
+        method: request.method,
+        headers: request.headers,
+        body: request.body
+      });
+
+      return doInstance.fetch(doRequest);
+    }
+
+    // ✅ Handle SSE connections
+    if (url.pathname.startsWith("/sse/workspaces/")) {
+      const workspaceId = url.pathname.split("/")[3];
+      const doId = env.WORKSPACE.idFromName(workspaceId);
+      const doInstance = env.WORKSPACE.get(doId);
+      return doInstance.fetch(request);
+    }
+
+    // Handle other requests...
+  }
+} satisfies ExportedHandler<Env>;
+```
+
+## Point-in-Time Recovery (PITR)
+
+### ✅ CORRECT: Backup and Restore
+
+```typescript
+class BackupDurableObject extends DurableObject {
+  async createBackup() {
+    // ✅ Get current bookmark for backup
+    const bookmark = await this.ctx.storage.getCurrentBookmark();
+
+    // Store bookmark metadata
+    await this.ctx.storage.put("backup:latest", {
+      bookmark,
+      timestamp: Date.now(),
+      description: "Manual backup"
+    });
+
+    return bookmark;
+  }
+
+  async restoreFromTime(targetTime: Date) {
+    // ✅ Get bookmark for specific time
+    const bookmark = await this.ctx.storage.getBookmarkForTime(targetTime);
+
+    // ✅ Schedule restore on next session
+    await this.ctx.storage.onNextSessionRestoreBookmark(bookmark);
+
+    return { success: true, restoreTime: targetTime };
+  }
+}
+```
+
+## Best Practices & Performance
+
+### ✅ DO:
+
+1. **Use SQLite backend** for new Durable Objects
+2. **Create indexes** for frequently queried columns
+3. **Use parameterized queries** to prevent SQL injection
+4. **Batch operations** in transactions for atomicity
+5. **Clean up SSE connections** on abort/error
+6. **Use meaningful Durable Object IDs** (names) for routing
+7. **Handle CORS** for browser requests
+8. **Structure SSE messages** with type/payload pattern
+9. **Use proper SSE headers** for browser compatibility
+10. **Handle connection cleanup** with AbortController
+
+### ❌ DON'T:
+
+1. **Don't use string concatenation** for SQL queries
+2. **Don't forget to close SSE writers** on connection end
+3. **Don't store large blobs** in Durable Objects (use R2 instead)
+4. **Don't create too many indexes** (impacts write performance)
+5. **Don't ignore error handling** in SSE message handlers
+6. **Don't forget migrations** when changing Durable Object classes
+7. **Don't forget SSE event format** (data: prefix and double newlines)
+
+## Error Handling Patterns
+
+```typescript
+class RobustDurableObject extends DurableObject {
+  async fetch(request: Request) {
+    try {
+      // Main request handling logic
+      return await this.handleRequest(request);
+    } catch (error) {
+      console.error("Durable Object error:", error);
+
+      return new Response(JSON.stringify({
+        error: "Internal server error",
+        message: error instanceof Error ? error.message : "Unknown error"
+      }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+  }
+
+  private async handleRequest(request: Request) {
+    // ✅ Validate request structure
+    if (request.method === "POST") {
+      const contentType = request.headers.get("Content-Type");
+      if (!contentType?.includes("application/json")) {
+        throw new Error("Content-Type must be application/json");
+      }
+    }
+
+    // Handle specific routes...
+  }
+}
+```
+
+## Database Schema Evolution
+
+```typescript
+// ✅ Handle schema migrations safely
+private initializeSchema() {
+  // Create base tables
+  this.sql.exec(`
+    CREATE TABLE IF NOT EXISTS schema_version (
+      version INTEGER PRIMARY KEY
+    );
+  `);
+
+  // Check current schema version
+  const versionResult = this.sql.exec("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1");
+  const currentVersion = versionResult.toArray()[0]?.version || 0;
+
+  // Apply migrations incrementally
+  if (currentVersion < 1) {
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL
+      );
+      INSERT INTO schema_version (version) VALUES (1);
+    `);
+  }
+
+  if (currentVersion < 2) {
+    this.sql.exec(`
+      ALTER TABLE users ADD COLUMN email TEXT;
+      INSERT INTO schema_version (version) VALUES (2);
+    `);
+  }
+}
+```
+
+## Repository-Specific Patterns
+
+Based on this EdgeConfig implementation, additional patterns include:
+
+### Workspace-Scoped Operations
+```typescript
+// ✅ Use workspace ID from Durable Object ID
+constructor(state: DurableObjectState, env: Env) {
+  this.workspaceId = state.id.toString(); // Unique workspace identifier
+}
+```
+
+### Activity Logging with SSE Notifications
+```typescript
+// ✅ Track all changes for audit trail and notify clients
+private async logActivity(action: string, resourceType: string, resourceId: string, userId?: string, changes?: unknown) {
+  const timestamp = Math.floor(Date.now() / 1000);
+  this.sql.exec(`
+    INSERT INTO activity_log (action, resource_type, resource_id, user_id, changes, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `, action, resourceType, resourceId, userId || null, changes ? JSON.stringify(changes) : null, timestamp);
+
+  // ✅ Notify all connected clients via SSE
+  await this.sendEvent('ACTIVITY_LOGGED', {
+    action,
+    resourceType,
+    resourceId,
+    userId,
+    timestamp
+  });
+}
+```
+
+### Collection-Based Document Storage with Real-time Updates
+```typescript
+// ✅ Support both direct config keys and collection-based documents
+async getDocument(environmentId: string, collection: string, documentId: string) {
+  const result = this.sql.exec(`
+    SELECT * FROM config_content
+    WHERE environment_id = ? AND collection_name = ? AND config_key = ?
+  `, environmentId, collection, documentId);
+
+  return result.toArray()[0];
+}
+
+// ✅ Update document and notify clients
+async updateDocument(environmentId: string, collection: string, documentId: string, data: unknown) {
+  const timestamp = Math.floor(Date.now() / 1000);
+
+  this.sql.exec(`
+    INSERT OR REPLACE INTO config_content
+    (environment_id, collection_name, config_key, config_value, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+  `, environmentId, collection, documentId, JSON.stringify(data), timestamp);
+
+  // ✅ Notify all connected clients
+  await this.sendEvent('DOCUMENT_UPDATED', {
+    environmentId,
+    collection,
+    documentId,
+    data,
+    timestamp
+  });
+}
+```
+
+### Real-time Configuration Updates
+```typescript
+// ✅ Broadcast configuration changes to all connected clients
+async updateConfig(environmentId: string, configKey: string, value: unknown) {
+  const timestamp = Math.floor(Date.now() / 1000);
+
+  this.sql.exec(`
+    INSERT OR REPLACE INTO config_content
+    (environment_id, config_key, config_value, updated_at)
+    VALUES (?, ?, ?, ?)
+  `, environmentId, configKey, JSON.stringify(value), timestamp);
+
+  // ✅ Notify all connected clients immediately
+  await this.sendEvent('CONFIG_UPDATED', {
+    environmentId,
+    configKey,
+    value,
+    timestamp
+  });
+}
+```
+
+## Related Resources
+
+- [Cloudflare Durable Objects Storage API](https://developers.cloudflare.com/durable-objects/api/storage-api/)
+- [SQLite Storage Backend Blog](https://blog.cloudflare.com/durable-objects-easy-fast-correct-choose-three/)
+- [Durable Objects Examples](https://developers.cloudflare.com/durable-objects/examples/)
+- [Server-Sent Events MDN Documentation](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
+- [EventSource API Reference](https://developer.mozilla.org/en-US/docs/Web/API/EventSource)

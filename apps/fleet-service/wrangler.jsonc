@@ -1,0 +1,37 @@
+{
+	"name": "fleet-service",
+	"main": "src/index.tsx",
+	"compatibility_date": "2025-03-07",
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": {
+		"enabled": true,
+		"head_sampling_rate": 1
+	},
+	"vars": {
+		"NAME": "fleet-service",
+		"ENVIRONMENT": "development"
+	},
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "FLEET_MANAGER",
+				"class_name": "InventoryAgent"
+			}
+		]
+	},
+	"ai": {
+		"binding": "AI"
+	},
+	// "vectorize": [
+	// 	{
+	// 		"binding": "INVENTORY_VECTORS",
+	// 		"index_name": "inventory-embeddings"
+	// 	}
+	// ],
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["InventoryAgent"]
+		}
+	]
+}
