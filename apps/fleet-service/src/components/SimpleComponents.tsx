@@ -190,7 +190,7 @@ export const Tabs: FC<TabsProps> = ({ tabs }) => {
 				<div
 					key={tab.id}
 					id={`tab-${tab.id}`}
-					class={`tab ${tab.active ? 'active' : ''}`}
+					class="tab"
 					onclick={`switchTab('${tab.id}')`}
 				>
 					{tab.label}

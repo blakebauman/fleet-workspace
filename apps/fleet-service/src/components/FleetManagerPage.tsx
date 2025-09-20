@@ -7,6 +7,7 @@ import { AgentList } from './AgentList'
 import { CommunicationPanel } from './CommunicationPanel'
 import { InventoryDashboard } from './InventoryDashboard'
 import { AIControlPanel } from './AIControlPanel'
+import { ChatInterface } from './ChatInterface'
 import { ClientScript } from './ClientScript'
 import { Tabs, Grid } from './SimpleComponents'
 
@@ -58,13 +59,14 @@ export const FleetManagerPage: FC<FleetManagerPageProps> = ({ path, tenantId }) 
 
 			{/* Simple Tabs */}
 			<Tabs tabs={[
-				{ id: 'fleet', label: isAtRoot ? 'Locations' : 'Sub-Locations', active: true },
+				{ id: 'fleet', label: isAtRoot ? 'Locations' : 'Sub-Locations' },
 				{ id: 'inventory', label: 'Inventory Dashboard' },
+				{ id: 'chat', label: 'AI Chat' },
 				{ id: 'ai', label: 'AI Control Center' }
 			]} />
 
 			{/* Inventory Sources Tab */}
-			<div id="fleet-content" class="tab-content active">
+			<div id="fleet-content" class="tab-content">
 				<Grid cols={2}>
 					<StatusCard path={path} parentPath={parentPath} />
 					<AgentForm currentPath={path} isAtRoot={isAtRoot} />
@@ -76,6 +78,11 @@ export const FleetManagerPage: FC<FleetManagerPageProps> = ({ path, tenantId }) 
 			{/* Inventory Dashboard Tab */}
 			<div id="inventory-content" class="tab-content">
 				<InventoryDashboard path={path} />
+			</div>
+
+			{/* AI Chat Tab */}
+			<div id="chat-content" class="tab-content">
+				<ChatInterface path={path} />
 			</div>
 
 			{/* AI Control Center Tab */}

@@ -1,410 +1,106 @@
 // Type definitions for Durable Objects are available globally
-import { z } from 'zod'
+import { createAgentSDK, type RealAgentSDK } from '../services/real-agent-sdk'
+import { BaseFleetManager, type Env, type InventoryUpdate, type FleetMessage, type StoredMessage, StockUpdateSchema, AgentNameSchema, InventoryError } from '../services/base-fleet-manager'
+import { AIService, type InventoryInsights, type DemandForecast } from '../services/ai-service'
+import { InventoryService } from '../services/inventory-service'
+import { QueueService } from '../services/queue-service'
+import { VectorizeService } from '../services/vectorize-service'
+import { WorkflowService } from '../services/workflow-service'
 
-// Error handling types
-interface APIError {
-	code: string
-	message: string
-	details?: unknown
-	timestamp: string
-}
+// All types and interfaces are now imported from base-fleet-manager.ts
 
-class InventoryError extends Error {
-	constructor(
-		public code: string,
-		message: string,
-		public statusCode: number = 500,
-		public details?: unknown
-	) {
-		super(message)
-		this.name = 'InventoryError'
+// All interfaces are now imported from base-fleet-manager.ts and ai-service.ts
+
+// Enhanced InventoryAgent using service architecture
+export class InventoryAgent extends BaseFleetManager {
+	private agentSDK: RealAgentSDK
+	private tenantId: string = 'demo'
+	private aiService: AIService
+	private inventoryService: InventoryService
+	private queueService: QueueService
+	private vectorizeService: VectorizeService
+	private workflowService: WorkflowService
+
+	// Chat statistics tracking
+	private chatStats = {
+		messagesToday: 0,
+		actionsExecuted: 0,
+		successfulActions: 0,
+		successRate: 0.0
 	}
-}
-
-// Input validation schemas
-const StockUpdateSchema = z.object({
-	sku: z.string().min(1).max(50),
-	quantity: z.number().int().min(0),
-	operation: z.enum(['set', 'increment', 'decrement'])
-})
-
-const AgentNameSchema = z.string()
-	.min(1)
-	.max(32)
-	.regex(/^[a-zA-Z0-9\s_-]+$/, 'Agent name can only contain alphanumeric characters, spaces, dashes, and underscores')
-
-// Removed unused MessageSchema
-
-// Agent interface for POC (simulates agents SDK capabilities)
-interface AgentSDK {
-	ai: {
-		run(model: string, options: any): Promise<{ response: string }>
-	}
-	sql(query: string, params?: any[]): Promise<{ results?: any[] }>
-	schedule(name: string, data: any, options?: { delay?: number }): Promise<void>
-}
-
-// Message types for WebSocket communication
-export type FleetMessage =
-	| { type: 'increment' }
-	| { type: 'createAgent'; name: string }
-	| { type: 'deleteAgent'; name: string }
-	| { type: 'directMessage'; agentName: string; message: string }
-	| { type: 'broadcast'; message: string }
-	| { type: 'ping' }
-	| { type: 'pong' }
-	| { type: 'state'; counter: number; agents: string[] }
-	| { type: 'error'; message: string }
-	| { type: 'agentCreated'; name: string }
-	| { type: 'agentDeleted'; name: string }
-	| { type: 'message'; from: string; content: string }
-	// INVENTORY POC EXTENSIONS
-	| { type: 'stockUpdate'; sku: string; quantity: number; operation: 'set' | 'increment' | 'decrement' }
-	| { type: 'stockQuery'; sku: string }
-	| { type: 'stockResponse'; sku: string; quantity: number; location: string }
-	| { type: 'lowStockAlert'; sku: string; currentStock: number; threshold: number; location: string }
-	| { type: 'inventorySync'; updates: InventoryUpdate[] }
-
-// Inventory types for POC
-interface InventoryUpdate {
-	sku: string
-	quantity: number
-	operation: 'set' | 'increment' | 'decrement'
-	timestamp: string
-	location: string
-}
-
-interface InventoryItem {
-	sku: string
-	name: string
-	currentStock: number
-	lowStockThreshold: number
-	lastUpdated: string
-}
-
-// AI-powered inventory insights
-interface InventoryInsights {
-	sku: string
-	shouldReorder: boolean
-	reorderQuantity: number
-	urgency: 'low' | 'medium' | 'high' | 'critical'
-	leadTimeMs: number
-	reasoning: string
-	confidence: number
-}
-
-// Demand forecast data
-interface DemandForecast {
-	sku: string
-	location: string
-	forecastPeriod: string
-	predictedDemand: number
-	seasonalityFactor: number
-	trendDirection: 'increasing' | 'decreasing' | 'stable'
-	confidence: number
-	reasoning: string
-}
-
-// State structure for each FleetManager instance
-interface FleetState {
-	counter: number
-	agents: Set<string>
-	websockets: Set<WebSocket>
-	messages: StoredMessage[] // In-memory message buffer
-	// INVENTORY POC EXTENSIONS
-	inventory: Map<string, InventoryItem> // SKU -> Item details
-	agentType: 'orchestrator' | 'warehouse' | 'retail' | 'fulfillment' // Agent specialization
-}
-
-// In-memory message storage interface
-interface StoredMessage {
-	id: string
-	timestamp: string
-	from_agent: string
-	to_agent: string | null // null for broadcast messages
-	content: string
-	message_type: 'direct' | 'broadcast' | 'system'
-}
-
-// Enhanced InventoryAgent using Agents SDK patterns
-export class InventoryAgent implements DurableObject, AgentSDK {
-	private storage: DurableObjectStorage
-	private sqlStorage: SqlStorage
-	private state: FleetState
-	private currentPath: string = '/'
-	private stateLoaded = false
-	private cache = new Map<string, { data: any; expires: number }>()
-	private initializationComplete = false
 
 	constructor(
-		private ctx: DurableObjectState,
-		private env: any
+		ctx: DurableObjectState,
+		env: Env
 	) {
-		console.log('FleetManager constructor called')
-		this.storage = ctx.storage
-		this.sqlStorage = ctx.storage.sql
-		this.state = {
-			counter: 0,
-			agents: new Set(),
-			websockets: new Set(),
-			messages: [],
-			// INVENTORY POC EXTENSIONS
-			inventory: new Map(),
-			agentType: 'orchestrator', // Default type
-		}
-		// Initialize schema on first run
-		this.initializeSchema()
+		super(ctx, env)
+		console.log('InventoryAgent constructor called')
 
-		// ✅ Use blockConcurrencyWhile to initialize from storage
-		// This ensures no requests are delivered until initialization completes
+		// Initialize real AgentSDK (will be updated when tenant is determined)
+		this.agentSDK = createAgentSDK(this.env, this.tenantId, this.currentPath)
+
+		// Initialize services
+		this.aiService = new AIService(env)
+		this.inventoryService = new InventoryService(env)
+		this.queueService = new QueueService(env)
+		this.vectorizeService = new VectorizeService(env)
+		this.workflowService = new WorkflowService(env)
+
+		// Override the initialization to include chat history loading
 		// eslint-disable-next-line @typescript-eslint/no-floating-promises
 		ctx.blockConcurrencyWhile(async () => {
-			console.log('[INIT] Initializing Durable Object from storage...')
+			console.log('[INIT] Initializing InventoryAgent from storage...')
 			// Load state for the default path - will be updated when fetch() sets currentPath
 			await this.loadStateFromStorage()
+
+			// Load chat history
+			await this.loadChatHistory()
+
+			// Load chat statistics
+			await this.loadChatStatistics()
+
+			// Clean up old chat messages
+			await this.cleanupOldChatMessages()
+
 			this.initializationComplete = true
-			console.log('[INIT] Initialization complete - ready to handle requests')
+			console.log('[INIT] InventoryAgent initialization complete - ready to handle requests')
 
 			// ✅ Broadcast initial state to any connected clients
 			this.broadcastState()
 		})
 
-		console.log('FleetManager constructor completed')
+		console.log('InventoryAgent constructor completed')
 	}
 
-	// ✅ Load state from storage during initialization
-	private async loadStateFromStorage(): Promise<void> {
+	// State loading is now handled by BaseFleetManager
+
+	// Error handling and validation are now handled by BaseFleetManager
+
+	// Caching methods are now handled by BaseFleetManager
+
+	// Schema initialization is now handled by BaseFleetManager
+
+	// Update tenant and path for this agent instance
+	private async updateTenantAndPath(tenantId: string, path: string) {
+		this.tenantId = tenantId
+		this.currentPath = path
+		// Recreate AgentSDK with new tenant and path
+		this.agentSDK = createAgentSDK(this.env, this.tenantId, this.currentPath)
+
+		// Reload chat history for the new path
+		await this.loadChatHistory()
+	}
+
+	// Real AI integration using AgentSDK
+	async aiRun(model: string, messages: Array<{ role: string; content: string }>): Promise<{ response: string }> {
 		try {
-			console.log(`[INIT] Loading state from storage for path: ${this.currentPath}`)
-
-			// Load fleet state
-			const stateResult = this.sqlStorage.exec(`
-				SELECT * FROM fleet_state WHERE id = ?
-			`, this.currentPath)
-
-			const stateRow = stateResult.toArray()[0] as any
-			if (stateRow) {
-				console.log(`[INIT] Found persisted state: counter=${stateRow.counter}, agents=${stateRow.agents}`)
-				this.state.counter = stateRow.counter || 0
-				this.state.agentType = stateRow.agent_type || 'orchestrator'
-
-				// ✅ Restore agents from JSON
-				const agentsArray = JSON.parse(stateRow.agents || '[]')
-				this.state.agents = new Set(agentsArray)
-				console.log(`[INIT] Restored ${this.state.agents.size} agents from storage`)
-			} else {
-				console.log(`[INIT] No persisted state found for path: ${this.currentPath}`)
-			}
-
-			// Load inventory items
-			const inventoryResult = this.sqlStorage.exec(`
-				SELECT * FROM inventory_items WHERE location = ?
-			`, this.currentPath)
-
-			const inventoryRows = inventoryResult.toArray()
-			for (const row of inventoryRows) {
-				const item: InventoryItem = {
-					sku: row.sku as string,
-					name: row.name as string,
-					currentStock: row.current_stock as number,
-					lowStockThreshold: row.low_stock_threshold as number,
-					lastUpdated: new Date().toISOString()
-				}
-				this.state.inventory.set(item.sku, item)
-			}
-			console.log(`[INIT] Restored ${this.state.inventory.size} inventory items from storage`)
-
-			this.stateLoaded = true
-			console.log(`[INIT] State loading completed successfully`)
-		} catch (error) {
-			console.error('[INIT] Failed to load state from storage:', error)
-			// Continue with default state if loading fails
-			this.stateLoaded = true
-		}
-	}
-
-	// Error handling methods
-	private handleError(error: unknown): Response {
-		if (error instanceof InventoryError) {
-			return Response.json({
-				code: error.code,
-				message: error.message,
-				details: error.details,
-				timestamp: new Date().toISOString()
-			} as APIError, { status: error.statusCode })
-		}
-
-		console.error('Unexpected error:', error)
-		return Response.json({
-			code: 'INTERNAL_ERROR',
-			message: 'An unexpected error occurred',
-			timestamp: new Date().toISOString()
-		} as APIError, { status: 500 })
-	}
-
-	private validateInput<T>(schema: z.ZodSchema<T>, data: unknown): T {
-		try {
-			return schema.parse(data)
-		} catch (error: unknown) {
-			if (error instanceof z.ZodError) {
-				throw new InventoryError('VALIDATION_ERROR', 'Invalid input', 400, error.errors)
-			}
-			throw error
-		}
-	}
-
-	// Caching methods
-	private getCached<T>(key: string): T | null {
-		const cached = this.cache.get(key)
-		if (cached && cached.expires > Date.now()) {
-			return cached.data
-		}
-		this.cache.delete(key)
-		return null
-	}
-
-	private setCache<T>(key: string, data: T, ttlMs: number = 300000): void {
-		this.cache.set(key, {
-			data,
-			expires: Date.now() + ttlMs
-		})
-	}
-
-	private clearCache(): void {
-		this.cache.clear()
-	}
-
-	// Initialize SQLite schema
-	private initializeSchema(): void {
-		try {
-			console.log('Initializing SQLite schema...')
-
-			// Create base tables
-			this.sqlStorage.exec(`
-				CREATE TABLE IF NOT EXISTS schema_version (
-					version INTEGER PRIMARY KEY
-				);
-			`);
-
-			// Check current schema version
-			const versionResult = this.sqlStorage.exec("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1");
-			const currentVersion = (versionResult.toArray()[0] as any)?.version || 0;
-			console.log('Current schema version:', currentVersion)
-
-			// Apply migrations incrementally
-			if (currentVersion < 1) {
-				this.sqlStorage.exec(`
-					CREATE TABLE IF NOT EXISTS fleet_state (
-						id TEXT PRIMARY KEY,
-						counter INTEGER NOT NULL DEFAULT 0,
-						agents TEXT NOT NULL DEFAULT '[]',
-						agent_type TEXT NOT NULL DEFAULT 'orchestrator',
-						created_at INTEGER DEFAULT (unixepoch()) NOT NULL,
-						updated_at INTEGER DEFAULT (unixepoch()) NOT NULL
-					);
-
-					CREATE TABLE IF NOT EXISTS inventory_items (
-						sku TEXT PRIMARY KEY,
-						name TEXT NOT NULL,
-						current_stock INTEGER NOT NULL DEFAULT 0,
-						low_stock_threshold INTEGER NOT NULL DEFAULT 10,
-						location TEXT NOT NULL,
-						created_at INTEGER DEFAULT (unixepoch()) NOT NULL,
-						updated_at INTEGER DEFAULT (unixepoch()) NOT NULL
-					);
-
-					CREATE TABLE IF NOT EXISTS stored_messages (
-						id TEXT PRIMARY KEY,
-						timestamp TEXT NOT NULL,
-						from_agent TEXT NOT NULL,
-						to_agent TEXT,
-						content TEXT NOT NULL,
-						message_type TEXT NOT NULL,
-						location TEXT NOT NULL
-					);
-
-					CREATE TABLE IF NOT EXISTS inventory_transactions (
-						id INTEGER PRIMARY KEY AUTOINCREMENT,
-						sku TEXT NOT NULL,
-						operation TEXT NOT NULL,
-						quantity INTEGER NOT NULL,
-						location TEXT NOT NULL,
-						timestamp TEXT DEFAULT (datetime('now')) NOT NULL
-					);
-
-					CREATE TABLE IF NOT EXISTS inventory_analysis (
-						id INTEGER PRIMARY KEY AUTOINCREMENT,
-						sku TEXT NOT NULL,
-						location TEXT NOT NULL,
-						analysis TEXT NOT NULL,
-						confidence REAL NOT NULL,
-						timestamp TEXT DEFAULT (datetime('now')) NOT NULL
-					);
-
-					CREATE TABLE IF NOT EXISTS inventory_decisions (
-						id INTEGER PRIMARY KEY AUTOINCREMENT,
-						sku TEXT NOT NULL,
-						location TEXT NOT NULL,
-						decision_type TEXT NOT NULL,
-						reasoning TEXT NOT NULL,
-						timestamp TEXT DEFAULT (datetime('now')) NOT NULL
-					);
-
-					CREATE TABLE IF NOT EXISTS demand_forecasts (
-						id INTEGER PRIMARY KEY AUTOINCREMENT,
-						sku TEXT NOT NULL,
-						location TEXT NOT NULL,
-						predicted_demand REAL NOT NULL,
-						confidence REAL NOT NULL,
-						trend_direction TEXT NOT NULL,
-						reasoning TEXT NOT NULL,
-						forecast_date TEXT DEFAULT (datetime('now')) NOT NULL
-					);
-
-					-- Create indexes for performance
-					CREATE INDEX IF NOT EXISTS idx_inventory_location ON inventory_items(location);
-					CREATE INDEX IF NOT EXISTS idx_inventory_low_stock ON inventory_items(current_stock, low_stock_threshold);
-					CREATE INDEX IF NOT EXISTS idx_messages_location ON stored_messages(location, timestamp);
-					CREATE INDEX IF NOT EXISTS idx_transactions_sku ON inventory_transactions(sku, timestamp);
-					CREATE INDEX IF NOT EXISTS idx_analysis_location ON inventory_analysis(location, timestamp);
-					CREATE INDEX IF NOT EXISTS idx_forecasts_location ON demand_forecasts(location, forecast_date);
-
-					INSERT INTO schema_version (version) VALUES (1);
-				`);
-			}
-
-			console.log('SQLite schema initialized successfully');
-
-			// Verify tables were created
-			const tablesResult = this.sqlStorage.exec(`
-				SELECT name FROM sqlite_master WHERE type='table' ORDER BY name
-			`)
-			const tables = tablesResult.toArray().map((row: any) => row.name)
-			console.log('Created tables:', tables)
-		} catch (error) {
-			console.error('Failed to initialize schema:', error)
-			console.error('Schema error details:', error instanceof Error ? error.message : 'Unknown error')
-		}
-	}
-
-	// AgentSDK interface implementation for POC
-	ai = {
-		run: async (model: string, options: any): Promise<{ response: string }> => {
-			try {
-				// Use Cloudflare Workers AI if available
-				if (this.env.AI) {
-					const result = await this.env.AI.run(model, options)
-					return { response: JSON.stringify(result) }
-				} else {
-					// Mock AI response for POC
-					return {
-						response: JSON.stringify(this.generateMockAIResponse(options.messages[options.messages.length - 1].content))
-					}
-				}
+			const result = await this.agentSDK.ai.run(model, messages)
+			return { response: result.response }
 			} catch (error) {
 				console.error('AI call failed:', error)
-				return { response: JSON.stringify(this.generateMockAIResponse("error")) }
-			}
+				// Fallback to mock for development if AI binding fails
+				console.warn('Falling back to mock AI response due to error')
+			return { response: JSON.stringify(this.generateMockAIResponse(messages[messages.length - 1]?.content || '')) }
 		}
 	}
 
@@ -424,23 +120,55 @@ export class InventoryAgent implements DurableObject, AgentSDK {
 
 	async schedule(name: string, data: any, options?: { delay?: number }): Promise<void> {
 		try {
-			// Mock scheduling for POC - in real implementation this would use Workflows
-			console.log(`Scheduled workflow: ${name}`, data, options)
-
-			// For POC, execute immediately with a delay
-			setTimeout(async () => {
-				console.log(`Executing scheduled workflow: ${name}`, data)
-				if (name === 'reorderWorkflow') {
-					// Mock reorder execution
-					this.broadcastToWebSockets({
-						type: 'message',
-						from: 'Scheduled Workflow',
-						content: `✅ Reorder completed: ${data.quantity} units of ${data.sku} ordered with ${data.urgency} priority`
-					})
-				}
-			}, options?.delay || 1000)
+			// Use real AgentSDK for workflow scheduling
+			await this.agentSDK.schedule.create(name, data, options)
+			console.log(`Workflow scheduled: ${name}`, data)
 		} catch (error) {
 			console.error('Scheduling failed:', error)
+			// Fallback to immediate execution if scheduling fails
+				console.log(`Executing workflow immediately: ${name}`, data)
+				await this.executeWorkflow(name, data)
+		}
+	}
+
+	// Execute workflow logic
+	private async executeWorkflow(name: string, data: any): Promise<void> {
+		switch (name) {
+			case 'reorderWorkflow':
+				await this.executeReorderWorkflow(data)
+				break
+			case 'demandForecastWorkflow':
+				await this.runDemandForecastWorkflow()
+				break
+			default:
+				console.log(`Unknown workflow: ${name}`)
+		}
+	}
+
+	// Execute reorder workflow
+	private async executeReorderWorkflow(data: any): Promise<void> {
+		try {
+			console.log(`Executing reorder workflow: ${data.quantity} units of ${data.sku}`)
+
+			// Simulate reorder process
+			await new Promise(resolve => setTimeout(resolve, 2000))
+
+			// Update inventory with reorder
+			await this.processStockUpdate({
+				sku: data.sku,
+				quantity: data.quantity,
+				operation: 'increment',
+				timestamp: new Date().toISOString(),
+				location: this.currentPath
+			})
+
+			this.broadcastToWebSockets({
+				type: 'message',
+				from: 'Reorder System',
+				content: `✅ Reorder completed: ${data.quantity} units of ${data.sku} ordered with ${data.urgency} priority`
+			})
+		} catch (error) {
+			console.error('Reorder workflow failed:', error)
 		}
 	}
 
@@ -473,12 +201,16 @@ export class InventoryAgent implements DurableObject, AgentSDK {
 			const url = new URL(request.url)
 			console.log(`[DO] Received request: ${request.method} ${url.pathname}${url.search}`)
 
-			// Extract the path from the custom header FIRST
+			// Extract tenant and path from headers
+			const tenantId = request.headers.get('x-tenant-id') || 'demo'
 			const fleetPath = request.headers.get('x-fleet-path')
+			console.log(`[DO] x-tenant-id header: "${tenantId}"`)
 			console.log(`[DO] x-fleet-path header: "${fleetPath}"`)
-			if (fleetPath) {
-				this.currentPath = fleetPath
-				console.log(`[DO] Set currentPath to: "${this.currentPath}"`)
+
+			// Update tenant and path if they've changed
+			if (tenantId !== this.tenantId || fleetPath !== this.currentPath) {
+				await this.updateTenantAndPath(tenantId, fleetPath || '/')
+				console.log(`[DO] Updated tenant: "${this.tenantId}", path: "${this.currentPath}"`)
 			}
 
 			// Only load state once per request cycle, and reload if path changed
@@ -577,8 +309,11 @@ export class InventoryAgent implements DurableObject, AgentSDK {
 			console.log('[INIT] Delaying state broadcast until initialization completes')
 		}
 
-		// Send recent message history to new client
-		await this.sendMessageHistoryToClient(server)
+		// Send chat history to new client (this includes all relevant messages)
+		await this.sendChatHistory(server)
+
+		// Send current chat statistics to new client
+		this.broadcastChatStats()
 
 		return new Response(null, {
 			status: 101,
@@ -633,6 +368,31 @@ export class InventoryAgent implements DurableObject, AgentSDK {
 				case 'inventorySync':
 					await this.processInventorySync(data)
 					break
+				case 'chatMessage':
+					await this.processChatMessage(ws, data)
+					break
+				case 'testPersistence':
+					// Test command to verify chat statistics persistence
+					console.log(`[CHAT] Received test persistence command`)
+					await this.testChatStatsPersistence()
+					this.sendToWebSocket(ws, {
+						type: 'message',
+						from: 'system',
+						content: 'Persistence test completed. Check console logs for results.'
+					})
+					break
+				case 'testPersistence25s':
+					// Test command to verify persistence over 25 seconds
+					console.log(`[CHAT] Received 25-second persistence test command`)
+					this.sendToWebSocket(ws, {
+						type: 'message',
+						from: 'system',
+						content: 'Starting 25-second persistence test. Check console logs for results.'
+					})
+					// Run test in background
+					// eslint-disable-next-line @typescript-eslint/no-floating-promises
+					this.testPersistenceOverTime()
+					break
 				default:
 					this.sendToWebSocket(ws, {
 						type: 'error',
@@ -681,47 +441,7 @@ export class InventoryAgent implements DurableObject, AgentSDK {
 	}
 
 	// Save state to SQLite storage
-	private async saveState(): Promise<void> {
-		try {
-			console.log(`[FIXED] Saving state for location: ${this.currentPath} (${this.state.agents.size} agents, counter: ${this.state.counter})`)
-			// Force recompile
-
-			// Save fleet state for this specific location
-			const timestamp = Math.floor(Date.now() / 1000)
-			this.sqlStorage.exec(`
-				INSERT OR REPLACE INTO fleet_state (id, counter, agents, agent_type, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?)
-			`,
-				this.currentPath, // Use currentPath instead of 'main'
-				this.state.counter,
-				JSON.stringify(Array.from(this.state.agents)),
-				this.state.agentType,
-				timestamp, // created_at
-				timestamp  // updated_at
-			)
-
-			// Save inventory items
-			for (const [_sku, item] of this.state.inventory) {
-				const itemTimestamp = Math.floor(Date.now() / 1000)
-				this.sqlStorage.exec(`
-					INSERT OR REPLACE INTO inventory_items
-					(sku, name, current_stock, low_stock_threshold, location, created_at, updated_at)
-					VALUES (?, ?, ?, ?, ?, ?, ?)
-				`,
-					item.sku,
-					item.name,
-					item.currentStock,
-					item.lowStockThreshold,
-					this.currentPath,
-					itemTimestamp, // created_at
-					itemTimestamp  // updated_at
-				)
-			}
-
-		} catch (error) {
-			console.error('Failed to save state:', error)
-		}
-	}
+	// saveState is now handled by BaseFleetManager
 
 	// Increment counter
 	private async incrementCounter(): Promise<void> {
@@ -1038,89 +758,17 @@ export class InventoryAgent implements DurableObject, AgentSDK {
 	}
 
 	// Broadcast current state to all connected WebSockets
-	private broadcastState(): void {
-		// ✅ Don't broadcast state until initialization is complete
-		if (!this.initializationComplete) {
-			console.log('[INIT] Skipping state broadcast - initialization not complete')
-			return
-		}
+	// broadcastState is now handled by BaseFleetManager
 
-		this.broadcastToWebSockets({
-			type: 'state',
-			counter: this.state.counter,
-			agents: Array.from(this.state.agents),
-		})
-	}
+	// broadcastToWebSockets is now handled by BaseFleetManager
 
-	// Send message to all connected WebSockets
-	private broadcastToWebSockets(message: FleetMessage): void {
-		for (const ws of this.state.websockets) {
-			this.sendToWebSocket(ws, message)
-		}
-	}
-
-	// Send message to specific WebSocket
-	private sendToWebSocket(ws: WebSocket, message: FleetMessage): void {
-		try {
-			if (ws.readyState === 1) {
-				console.log(`Sending WebSocket message:`, message)
-				ws.send(JSON.stringify(message))
-			} else {
-				console.log(`WebSocket not ready, state: ${ws.readyState}`)
-			}
-		} catch (error) {
-			console.error('Error sending WebSocket message:', error)
-			this.state.websockets.delete(ws)
-		}
-	}
+	// sendToWebSocket is now handled by BaseFleetManager
 
 	// Removed isValidAgentName method - now using Zod validation
 
 
 	// Store a message in SQLite
-	private storeMessage(
-		fromAgent: string,
-		toAgent: string | null,
-		content: string,
-		messageType: 'direct' | 'broadcast' | 'system'
-	): void {
-		const message: StoredMessage = {
-			id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-			timestamp: new Date().toISOString(),
-			from_agent: fromAgent,
-			to_agent: toAgent,
-			content,
-			message_type: messageType
-		}
-
-		try {
-			// Store in SQLite
-			this.sqlStorage.exec(`
-				INSERT INTO stored_messages (id, timestamp, from_agent, to_agent, content, message_type, location)
-				VALUES (?, ?, ?, ?, ?, ?, ?)
-			`,
-				message.id,
-				message.timestamp,
-				message.from_agent,
-				message.to_agent,
-				message.content,
-				message.message_type,
-				this.currentPath
-			)
-
-			// Add to in-memory cache
-			this.state.messages.push(message)
-
-			// Keep only the last 100 messages to prevent memory bloat
-			if (this.state.messages.length > 100) {
-				this.state.messages = this.state.messages.slice(-100)
-			}
-
-			console.log(`Message stored: ${messageType} from ${fromAgent} to ${toAgent || 'broadcast'}`)
-		} catch (error) {
-			console.error('Failed to store message:', error)
-		}
-	}
+	// storeMessage is now handled by BaseFleetManager
 
 	// Get message history from SQLite
 	private async getMessages(request: Request): Promise<Response> {
@@ -1313,7 +961,8 @@ export class InventoryAgent implements DurableObject, AgentSDK {
 	// ==============================================
 
 	// AI-powered inventory analysis using Agents SDK with structured outputs
-	async analyzeInventoryTrends(sku: string): Promise<InventoryInsights> {
+	// Use AIService for inventory analysis
+	async analyzeInventoryTrends(sku: string): Promise<any> {
 		try {
 			const item = this.state.inventory.get(sku)
 			if (!item) {
@@ -1332,57 +981,15 @@ export class InventoryAgent implements DurableObject, AgentSDK {
 			const seasonalData = await this.getSeasonalityData(sku)
 			const salesVelocity = await this.getSalesVelocity(sku)
 
-			// Define structured output schema
-			const InventoryAnalysisSchema = {
-				type: 'object',
-				properties: {
-					shouldReorder: { type: 'boolean' },
-					reorderQuantity: { type: 'number', minimum: 0 },
-					urgency: { type: 'string', enum: ['low', 'medium', 'high', 'critical'] },
-					leadTimeMs: { type: 'number', minimum: 0 },
-					reasoning: { type: 'string' },
-					confidence: { type: 'number', minimum: 0, maximum: 1 }
-				},
-				required: ['shouldReorder', 'reorderQuantity', 'urgency', 'leadTimeMs', 'reasoning', 'confidence']
-			}
-
-			// AI analysis prompt
-			const analysisPrompt = `You are an expert inventory analyst. Analyze this inventory data and provide reorder recommendations:
-
-CURRENT STATUS:
-- SKU: ${sku}
-- Current Stock: ${item.currentStock}
-- Low Stock Threshold: ${item.lowStockThreshold}
-- Location: ${this.currentPath}
-
-HISTORICAL DATA:
-- Recent Sales: ${JSON.stringify(salesHistory.results?.slice(0, 10) || [])}
-- Sales Velocity (units/day): ${salesVelocity}
-- Seasonality Factor: ${seasonalData.seasonalityFactor}
-
-Provide a JSON response with the exact schema specified.`
-
-			// Use Workers AI with structured output
-			const aiResponse = await this.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
-				messages: [
-					{
-						role: 'system',
-						content: 'You are an expert inventory analyst. Always respond with valid JSON matching the exact schema provided.'
-					},
-					{
-						role: 'user',
-						content: analysisPrompt
-					}
-				],
-				response_format: {
-					type: 'json_schema',
-					schema: InventoryAnalysisSchema
-				}
-			})
-
-			// Parse structured AI response
-			const insights = aiResponse.parsed as InventoryInsights
-			insights.sku = sku
+			// Use AIService for analysis
+			const insights = await this.aiService.analyzeInventoryTrends(
+				sku,
+				item,
+				this.currentPath,
+				salesHistory.results || [],
+				salesVelocity,
+				seasonalData.seasonalityFactor
+			)
 
 			// Store analysis in agent's database
 			await this.sql(`
@@ -1396,10 +1003,11 @@ Provide a JSON response with the exact schema specified.`
 		} catch (error) {
 			console.error(`Failed to analyze inventory trends for ${sku}:`, error)
 			// Return conservative fallback analysis
+			const item = this.state.inventory.get(sku)
 			return {
 				sku,
-				shouldReorder: this.state.inventory.get(sku)!.currentStock <= this.state.inventory.get(sku)!.lowStockThreshold,
-				reorderQuantity: this.state.inventory.get(sku)!.lowStockThreshold * 2,
+				shouldReorder: (item?.currentStock || 0) <= (item?.lowStockThreshold || 10),
+				reorderQuantity: (item?.lowStockThreshold || 10) * 2,
 				urgency: 'medium',
 				leadTimeMs: 7 * 24 * 60 * 60 * 1000, // 7 days
 				reasoning: 'Fallback analysis due to AI processing error',
@@ -1507,7 +1115,7 @@ Provide a JSON response with the exact schema specified.`
 			}
 
 			// Define structured output schema for demand forecasts
-			const DemandForecastSchema = {
+			const _DemandForecastSchema = {
 				type: 'array',
 				items: {
 					type: 'object',
@@ -1533,8 +1141,7 @@ DATE: ${new Date().toISOString()}
 
 For each SKU, predict demand and provide reasoning. Respond with JSON array matching the exact schema provided.`
 
-			const aiResponse = await this.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
-				messages: [
+			const aiResponse = await this.aiRun('@cf/meta/llama-3.1-8b-instruct', [
 					{
 						role: 'system',
 						content: 'You are a demand forecasting expert. Always respond with valid JSON array matching the exact schema provided.'
@@ -1543,14 +1150,9 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 						role: 'user',
 						content: forecastPrompt
 					}
-				],
-				response_format: {
-					type: 'json_schema',
-					schema: DemandForecastSchema
-				}
-			})
+			])
 
-			const forecasts = aiResponse.parsed as DemandForecast[]
+			const forecasts = JSON.parse(aiResponse.response) as DemandForecast[]
 
 			// Store forecasts and trigger actions
 			for (const forecast of forecasts) {
@@ -1602,6 +1204,92 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 			return result.results?.[0]?.avg_sales || 0
 		} catch {
 			return 0
+		}
+	}
+
+	// Vectorize integration for product similarity and recommendations
+	async getSimilarProducts(sku: string, limit: number = 5): Promise<Array<{sku: string; similarity: number; name: string}>> {
+		try {
+			if (!this.env.INVENTORY_VECTORS) {
+				console.warn('Vectorize not available, returning empty similar products')
+				return []
+			}
+
+			// Get product embedding (in real implementation, this would be pre-computed)
+			const productEmbedding = await this.getProductEmbedding(sku)
+			if (!productEmbedding) {
+				return []
+			}
+
+			// Query similar products using Vectorize
+			const results = await this.env.INVENTORY_VECTORS.query(productEmbedding, {
+				topK: limit,
+				returnValues: true,
+				returnMetadata: true
+			})
+
+			return results.matches.map((match: any) => ({
+				sku: match.metadata?.sku || 'unknown',
+				similarity: match.score || 0,
+				name: match.metadata?.name || 'Unknown Product'
+			}))
+		} catch (error) {
+			console.error('Failed to get similar products:', error)
+			return []
+		}
+	}
+
+	// Generate product embedding for Vectorize
+	private async getProductEmbedding(sku: string): Promise<number[] | null> {
+		try {
+			const item = this.state.inventory.get(sku)
+			if (!item) return null
+
+			// Create product description for embedding
+			const productDescription = `Product ${item.sku}: ${item.name}, Stock: ${item.currentStock}, Threshold: ${item.lowStockThreshold}`
+
+			// Use Workers AI to generate embedding
+			const embedding = await this.env.AI.run('@cf/baai/bge-base-en-v1.5', {
+				text: productDescription
+			})
+
+			return embedding.data[0]
+		} catch (error) {
+			console.error('Failed to generate product embedding:', error)
+			return null
+		}
+	}
+
+	// Store product embedding in Vectorize
+	async storeProductEmbedding(sku: string): Promise<void> {
+		try {
+			if (!this.env.INVENTORY_VECTORS) {
+				console.warn('Vectorize not available, skipping embedding storage')
+				return
+			}
+
+			const item = this.state.inventory.get(sku)
+			if (!item) return
+
+			const embedding = await this.getProductEmbedding(sku)
+			if (!embedding) return
+
+			// Store in Vectorize
+			await this.env.INVENTORY_VECTORS.insert([{
+				id: sku,
+				values: embedding,
+				metadata: {
+					sku: item.sku,
+					name: item.name,
+					location: this.currentPath,
+					stock: item.currentStock,
+					threshold: item.lowStockThreshold
+				}
+			}])
+
+			console.log(`Stored embedding for product: ${sku}`)
+		} catch (error) {
+			console.error('Failed to store product embedding:', error)
 		}
 	}
 
@@ -1693,6 +1381,21 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 					trend_direction TEXT NOT NULL,
 					reasoning TEXT NOT NULL,
 					forecast_date DATETIME DEFAULT CURRENT_TIMESTAMP
+				)
+			`)
+
+			await this.sql(`
+				CREATE TABLE IF NOT EXISTS chat_statistics (
+					id INTEGER PRIMARY KEY AUTOINCREMENT,
+					location TEXT NOT NULL,
+					date TEXT NOT NULL,
+					messages_today INTEGER DEFAULT 0,
+					actions_executed INTEGER DEFAULT 0,
+					successful_actions INTEGER DEFAULT 0,
+					success_rate REAL DEFAULT 0.0,
+					created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+					updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+					UNIQUE(location, date)
 				)
 			`)
 
@@ -1827,6 +1530,49 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 		if (analyses.length === 0) return 0
 		const totalConfidence = analyses.reduce((sum, analysis) => sum + (analysis.confidence || 0), 0)
 		return totalConfidence / analyses.length
+	}
+
+	// ==============================================
+	// QUEUE CONSUMER FOR ASYNCHRONOUS PROCESSING
+	// ==============================================
+
+	// Handle queue messages for asynchronous processing
+	async handleQueueMessage(batch: MessageBatch<any>): Promise<void> {
+		console.log(`Processing ${batch.messages.length} queue messages`)
+
+		for (const message of batch.messages) {
+			try {
+				const data = message.body as {
+					workflow: string
+					data: any
+					location: string
+					timestamp: string
+					delay?: number
+				}
+
+				console.log(`Processing workflow: ${data.workflow} for location: ${data.location}`)
+
+				// Set the current path for this message
+				const originalPath = this.currentPath
+				this.currentPath = data.location
+
+				// Load state for the target location
+				await this.loadStateFromStorage()
+
+				// Execute the workflow
+				await this.executeWorkflow(data.workflow, data.data)
+
+				// Restore original path
+				this.currentPath = originalPath
+
+				// Acknowledge the message
+				message.ack()
+			} catch (error) {
+				console.error('Failed to process queue message:', error)
+				// Retry the message
+				message.retry()
+			}
+		}
 	}
 
 	// ==============================================
@@ -1981,87 +1727,31 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 	}
 
 	// Process stock updates (core inventory logic with AI enhancement)
+	// Process stock updates using InventoryService
 	private async processStockUpdate(update: InventoryUpdate | { type: 'stockUpdate'; sku: string; quantity: number; operation: 'set' | 'increment' | 'decrement' }): Promise<void> {
-		const sku = update.sku
-		const quantity = update.quantity
-		const operation = update.operation
-
-		// Initialize database schema if needed
-		await this.initializeAgentDatabase().catch(() => {}) // Silent fail for POC
-
-		// Get or create inventory item
-		let item = this.state.inventory.get(sku)
-		if (!item) {
-			item = {
-				sku,
-				name: `Product ${sku}`, // In real system, this would come from product catalog
-				currentStock: 0,
-				lowStockThreshold: 10, // Default threshold
-				lastUpdated: new Date().toISOString()
-			}
+		// Convert to InventoryUpdate format
+		const inventoryUpdate: InventoryUpdate = {
+			sku: update.sku,
+			quantity: update.quantity,
+			operation: update.operation,
+			timestamp: new Date().toISOString(),
+			location: this.currentPath
 		}
 
-		const previousStock = item.currentStock
+		// Use InventoryService to process the update
+		await this.inventoryService.processStockUpdate(
+			inventoryUpdate,
+			this.currentPath,
+			this.sqlStorage,
+			this.state.inventory,
+			(message: any) => this.broadcastToWebSockets(message)
+		)
 
-		// Apply the operation
-		switch (operation) {
-			case 'set':
-				item.currentStock = quantity
-				break
-			case 'increment':
-				item.currentStock += quantity
-				break
-			case 'decrement':
-				item.currentStock = Math.max(0, item.currentStock - quantity) // Prevent negative stock
-				break
-		}
-
-		item.lastUpdated = new Date().toISOString()
-		this.state.inventory.set(sku, item)
-
-		// Save state
+		// Save state after update
 		await this.saveState()
-
-		// Clear inventory cache since data changed
-		this.cache.delete(`inventory:${this.currentPath}`)
-		this.cache.delete(`state:${this.currentPath}`)
-
-		// Record transaction in agent database for AI analysis
-		try {
-			await this.sql(`
-				INSERT INTO inventory_transactions (sku, operation, quantity, location, timestamp)
-				VALUES (?, ?, ?, ?, ?)
-			`, [sku, operation, quantity, this.currentPath, new Date().toISOString()])
-		} catch (error) {
-			console.error('Failed to record inventory transaction:', error)
-		}
-
-		// AI-powered low stock analysis and autonomous actions
-		if (item.currentStock <= item.lowStockThreshold) {
-			this.broadcastToWebSockets({
-				type: 'lowStockAlert',
-				sku,
-				currentStock: item.currentStock,
-				threshold: item.lowStockThreshold,
-				location: this.currentPath
-			})
-
-			// Trigger AI-powered reorder analysis
-			await this.processLowStockAlert(sku, item.currentStock)
-		}
-
-		// Broadcast update to connected clients
-		this.broadcastToWebSockets({
-			type: 'stockUpdate',
-			sku,
-			quantity: item.currentStock,
-			operation: 'set' // Always send current state
-		})
 
 		// Propagate to parent agents (hierarchical coordination)
 		await this.propagateStockUpdate(update)
-
-		console.log(`🔄 Stock updated: ${sku} = ${item.currentStock} at ${this.currentPath} (${previousStock} → ${item.currentStock})`)
 	}
 
 	// Process stock queries via WebSocket
@@ -2081,6 +1771,674 @@ For each SKU, predict demand and provide reasoning. Respond with JSON array matc
 		for (const update of sync.updates) {
 			await this.processStockUpdate(update)
 		}
+	}
+
+	// Process chat messages with AI-powered responses
+	private async processChatMessage(ws: WebSocket, message: { type: 'chatMessage'; content: string; userId?: string }): Promise<void> {
+		try {
+			console.log(`[CHAT] Processing message: "${message.content}"`)
+
+			// Update message count
+			await this.updateChatStats('message')
+
+			// Store user message
+			this.storeMessage('user', null, message.content, 'direct')
+
+			// Send user message to client
+			this.sendToWebSocket(ws, {
+				type: 'chatResponse',
+				role: 'user',
+				content: message.content,
+				timestamp: new Date().toISOString()
+			})
+
+			// Process with AI service for intelligent response
+			const aiResponse = await this.processChatWithAI(message.content, message.userId)
+
+			// Store AI response
+			this.storeMessage('ai-assistant', null, aiResponse.content, 'direct')
+
+			// Send AI response to client
+			this.sendToWebSocket(ws, {
+				type: 'chatResponse',
+				role: 'assistant',
+				content: aiResponse.content,
+				timestamp: new Date().toISOString(),
+				metadata: aiResponse.metadata
+			})
+
+			// Execute any actions if specified
+			if (aiResponse.actions && aiResponse.actions.length > 0) {
+				await this.executeChatActions(aiResponse.actions, ws)
+			}
+
+		} catch (error) {
+			console.error('[CHAT] Error processing chat message:', error)
+			this.sendToWebSocket(ws, {
+				type: 'chatResponse',
+				role: 'assistant',
+				content: 'I apologize, but I encountered an error processing your request. Please try again.',
+				timestamp: new Date().toISOString(),
+				metadata: { error: true }
+			})
+		}
+	}
+
+	// Load chat history from SQLite storage
+	private async loadChatHistory(): Promise<void> {
+		try {
+			console.log(`[CHAT] Loading chat history for location: ${this.currentPath}`)
+
+			// Load chat messages from SQLite
+			const result = this.sqlStorage.exec(`
+				SELECT * FROM stored_messages
+				WHERE location = ?
+				AND (from_agent = 'user' OR from_agent = 'ai-assistant')
+				ORDER BY timestamp ASC
+				LIMIT 100
+			`, [this.currentPath])
+
+			const messages = result.toArray()
+			console.log(`[CHAT] Loaded ${messages.length} chat messages from storage`)
+
+			// Store in memory for quick access
+			for (const row of messages) {
+				const message: StoredMessage = {
+					id: row.id as string,
+					timestamp: row.timestamp as string,
+					from_agent: row.from_agent as string,
+					to_agent: row.to_agent as string | null,
+					content: row.content as string,
+					message_type: row.message_type as 'direct' | 'broadcast' | 'system'
+				}
+				this.state.messages.push(message)
+			}
+
+			// Keep only the last 100 messages in memory
+			if (this.state.messages.length > 100) {
+				this.state.messages = this.state.messages.slice(-100)
+			}
+
+		} catch (error) {
+			console.error('[CHAT] Failed to load chat history:', error)
+		}
+	}
+
+	// Send chat history to a specific WebSocket connection
+	private async sendChatHistory(ws: WebSocket): Promise<void> {
+		try {
+			console.log(`[CHAT] Sending chat history to WebSocket`)
+
+			// Send all stored messages to the client
+			for (const message of this.state.messages) {
+				// Only send chat messages (user and ai-assistant)
+				if (message.from_agent === 'user' || message.from_agent === 'ai-assistant') {
+					this.sendToWebSocket(ws, {
+						type: 'chatResponse',
+						role: message.from_agent === 'user' ? 'user' : 'assistant',
+						content: message.content,
+						timestamp: message.timestamp,
+						metadata: message.from_agent === 'ai-assistant' ? { loaded: true } : undefined
+					})
+				}
+			}
+
+			console.log(`[CHAT] Sent ${this.state.messages.length} chat messages to client`)
+
+		} catch (error) {
+			console.error('[CHAT] Failed to send chat history:', error)
+		}
+	}
+
+	// Clean up old chat messages to prevent database bloat
+	private async cleanupOldChatMessages(): Promise<void> {
+		try {
+			console.log(`[CHAT] Cleaning up old chat messages for location: ${this.currentPath}`)
+
+			// Delete messages older than 30 days
+			const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+			this.sqlStorage.exec(`
+				DELETE FROM stored_messages
+				WHERE location = ?
+				AND (from_agent = 'user' OR from_agent = 'ai-assistant')
+				AND timestamp < ?
+			`, this.currentPath, thirtyDaysAgo)
+
+			console.log(`[CHAT] Cleaned up old chat messages`)
+
+		} catch (error) {
+			console.error('[CHAT] Failed to cleanup old chat messages:', error)
+		}
+	}
+
+	// Load chat statistics from SQLite storage
+	private async loadChatStatistics(): Promise<void> {
+		try {
+			console.log(`[CHAT] Loading chat statistics for location: ${this.currentPath}`)
+
+			const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
+
+			const result = this.sqlStorage.exec(`
+				SELECT * FROM chat_statistics
+				WHERE location = ? AND date = ?
+			`, [this.currentPath, today])
+
+			const stats = result.toArray()[0] as any
+			if (stats) {
+				this.chatStats = {
+					messagesToday: stats.messages_today || 0,
+					actionsExecuted: stats.actions_executed || 0,
+					successfulActions: stats.successful_actions || 0,
+					successRate: stats.success_rate || 0.0
+				}
+				console.log(`[CHAT] Loaded chat statistics:`, this.chatStats)
+			} else {
+				console.log(`[CHAT] No existing statistics for today, starting fresh`)
+			}
+
+		} catch (error) {
+			console.error('[CHAT] Failed to load chat statistics:', error)
+		}
+	}
+
+	// Save chat statistics to SQLite storage
+	private async saveChatStatistics(): Promise<void> {
+		try {
+			const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
+			const now = new Date().toISOString()
+
+			// Calculate success rate
+			this.chatStats.successRate = this.chatStats.actionsExecuted > 0
+				? (this.chatStats.successfulActions / this.chatStats.actionsExecuted) * 100
+				: 0
+
+			console.log(`[CHAT] Saving chat statistics to database:`, {
+				location: this.currentPath,
+				date: today,
+				stats: this.chatStats,
+				timestamp: now
+			})
+
+			this.sqlStorage.exec(`
+				INSERT OR REPLACE INTO chat_statistics
+				(location, date, messages_today, actions_executed, successful_actions, success_rate, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?,
+					COALESCE((SELECT created_at FROM chat_statistics WHERE location = ? AND date = ?), ?),
+					?)
+			`, [
+				this.currentPath, today,
+				this.chatStats.messagesToday,
+				this.chatStats.actionsExecuted,
+				this.chatStats.successfulActions,
+				this.chatStats.successRate,
+				this.currentPath, today, now, // for created_at fallback
+				now // updated_at
+			])
+
+			console.log(`[CHAT] Successfully saved chat statistics to database`)
+
+			// Run persistence test after saving
+			await this.testChatStatsPersistence()
+
+		} catch (error) {
+			console.error('[CHAT] Failed to save chat statistics:', error)
+		}
+	}
+
+	// Update chat statistics
+	private async updateChatStats(type: 'message' | 'action' | 'success' | 'failure'): Promise<void> {
+		try {
+			switch (type) {
+				case 'message':
+					this.chatStats.messagesToday++
+				break
+				case 'action':
+					this.chatStats.actionsExecuted++
+				break
+				case 'success':
+					this.chatStats.successfulActions++
+					break
+				case 'failure':
+					// Don't increment actionsExecuted here as it's already counted
+				break
+		}
+
+			// Save to database
+			await this.saveChatStatistics()
+
+			// Broadcast updated stats to all connected clients
+			this.broadcastChatStats()
+
+		} catch (error) {
+			console.error('[CHAT] Failed to update chat statistics:', error)
+		}
+	}
+
+	// Broadcast chat statistics to all connected WebSockets
+	private broadcastChatStats(): void {
+		this.broadcastToWebSockets({
+			type: 'chatStats',
+			messagesToday: this.chatStats.messagesToday,
+			actionsExecuted: this.chatStats.actionsExecuted,
+			successRate: Math.round(this.chatStats.successRate * 100) / 100 // Round to 2 decimal places
+		})
+	}
+
+	// Test method to verify chat statistics persistence
+	private async testChatStatsPersistence(): Promise<void> {
+		try {
+			console.log(`[CHAT] Testing chat statistics persistence for location: ${this.currentPath}`)
+
+			// Get current stats from database
+			const today = new Date().toISOString().split('T')[0]
+			const result = this.sqlStorage.exec(`
+				SELECT * FROM chat_statistics
+				WHERE location = ? AND date = ?
+			`, [this.currentPath, today])
+
+			const dbStats = result.toArray()[0] as any
+			const memoryStats = this.chatStats
+
+			console.log(`[CHAT] Memory stats:`, memoryStats)
+			console.log(`[CHAT] Database stats:`, dbStats)
+
+			// Verify they match
+			if (dbStats) {
+				const matches =
+					dbStats.messages_today === memoryStats.messagesToday &&
+					dbStats.actions_executed === memoryStats.actionsExecuted &&
+					dbStats.successful_actions === memoryStats.successfulActions
+
+				console.log(`[CHAT] Stats persistence test: ${matches ? 'PASSED' : 'FAILED'}`)
+
+				if (!matches) {
+					console.error(`[CHAT] Stats mismatch detected!`)
+					console.error(`[CHAT] Memory: messages=${memoryStats.messagesToday}, actions=${memoryStats.actionsExecuted}, success=${memoryStats.successfulActions}`)
+					console.error(`[CHAT] Database: messages=${dbStats.messages_today}, actions=${dbStats.actions_executed}, success=${dbStats.successful_actions}`)
+				}
+			} else {
+				console.log(`[CHAT] No database stats found for today`)
+			}
+
+		} catch (error) {
+			console.error('[CHAT] Failed to test chat statistics persistence:', error)
+		}
+	}
+
+	// Test persistence over time (for 20+ second verification)
+	private async testPersistenceOverTime(): Promise<void> {
+		try {
+			console.log(`[CHAT] Starting 25-second persistence test...`)
+
+			// Record initial stats
+			const initialStats = { ...this.chatStats }
+			console.log(`[CHAT] Initial stats:`, initialStats)
+
+			// Wait 25 seconds
+			await new Promise(resolve => setTimeout(resolve, 25000))
+
+			// Check if stats are still persisted
+			await this.testChatStatsPersistence()
+
+			// Verify stats haven't changed
+			const currentStats = { ...this.chatStats }
+			const statsUnchanged =
+				initialStats.messagesToday === currentStats.messagesToday &&
+				initialStats.actionsExecuted === currentStats.actionsExecuted &&
+				initialStats.successfulActions === currentStats.successfulActions
+
+			console.log(`[CHAT] 25-second persistence test: ${statsUnchanged ? 'PASSED' : 'FAILED'}`)
+
+			if (!statsUnchanged) {
+				console.error(`[CHAT] Stats changed during 25-second test!`)
+				console.error(`[CHAT] Initial:`, initialStats)
+				console.error(`[CHAT] Current:`, currentStats)
+			}
+
+		} catch (error) {
+			console.error('[CHAT] Failed to test persistence over time:', error)
+		}
+	}
+
+	// Process chat message with AI service
+	private async processChatWithAI(message: string, userId?: string): Promise<{
+		content: string
+		metadata?: any
+		actions?: Array<{ type: string; data: any }>
+	}> {
+		try {
+			// First, try simple intent recognition for common queries
+			const intentResponse = this.processSimpleIntent(message)
+			if (intentResponse) {
+				return intentResponse
+			}
+
+			// Use AI service to process the chat message
+			const aiResponse = await this.agentSDK.ai.run('@cf/meta/llama-3.1-8b-instruct', [
+				{
+					role: 'system',
+					content: `You are an AI inventory management assistant. You help users manage their inventory through natural language conversations.
+
+Current context:
+- Location: ${this.currentPath}
+- Tenant: ${this.tenantId}
+- Available inventory items: ${Array.from(this.state.inventory.keys()).join(', ')}
+
+You can help with:
+1. Checking stock levels and inventory status
+2. Analyzing trends and forecasting demand
+3. Suggesting reorder quantities and timing
+4. Finding similar products and recommendations
+5. Managing inventory across multiple locations
+6. Executing inventory actions (updates, reorders, etc.)
+
+When responding:
+- Be helpful and conversational
+- Provide specific, actionable information
+- If you need to execute actions, specify them clearly
+- Always confirm what actions you're taking
+- Use the available inventory data to give accurate responses
+
+Respond in JSON format with:
+{
+  "content": "Your response to the user",
+  "actions": [{"type": "action_type", "data": {...}}] // optional
+}`
+				},
+				{
+					role: 'user',
+					content: message
+				}
+			])
+
+			// Parse AI response - handle both JSON and plain text responses
+			let response
+			try {
+				// Ensure we have a string to parse
+				const responseText = typeof aiResponse.response === 'string' ? aiResponse.response : JSON.stringify(aiResponse.response)
+				response = JSON.parse(responseText)
+			} catch (parseError) {
+				// If parsing fails, treat as plain text response
+				console.log('[CHAT] AI returned plain text response, wrapping in JSON structure:', parseError instanceof Error ? parseError.message : 'Unknown parse error')
+				const responseText = typeof aiResponse.response === 'string' ? aiResponse.response : JSON.stringify(aiResponse.response)
+				response = {
+					content: responseText,
+					actions: []
+				}
+			}
+
+			// Add metadata
+			response.metadata = {
+				confidence: 0.9,
+				processingTime: Date.now(),
+				userId: userId || 'anonymous'
+			}
+
+			return response
+
+		} catch (error) {
+			console.error('[CHAT] AI processing failed:', error)
+
+			// Fallback response
+			return {
+				content: `I understand you're asking about: "${message}". I can help you with inventory management tasks like checking stock levels, analyzing trends, or suggesting reorders. Could you be more specific about what you'd like to know?`,
+				metadata: {
+					confidence: 0.5,
+					fallback: true,
+					error: error instanceof Error ? error.message : 'Unknown error'
+				}
+			}
+		}
+	}
+
+	// Simple intent recognition for common queries
+	private processSimpleIntent(message: string): {
+		content: string
+		metadata?: any
+		actions?: Array<{ type: string; data: any }>
+	} | null {
+		const lowerMessage = message.toLowerCase()
+
+		// Low stock queries
+		if (lowerMessage.includes('low stock') || lowerMessage.includes('low inventory')) {
+			const lowStockItems = Array.from(this.state.inventory.values())
+				.filter(item => item.currentStock <= item.lowStockThreshold)
+
+			if (lowStockItems.length === 0) {
+				return {
+					content: "Great news! No items are currently low on stock.",
+					metadata: { action: 'show_low_stock', count: 0 },
+					actions: [{ type: 'show_low_stock', data: {} }]
+				}
+			} else {
+				const itemList = lowStockItems.map(item =>
+					`• ${item.sku}: ${item.currentStock}/${item.lowStockThreshold} units`
+				).join('\n')
+
+				return {
+					content: `I found ${lowStockItems.length} items that are low on stock:\n\n${itemList}`,
+					metadata: { action: 'show_low_stock', count: lowStockItems.length },
+					actions: [{ type: 'show_low_stock', data: {} }]
+				}
+			}
+		}
+
+		// Summary queries
+		if (lowerMessage.includes('summary') || lowerMessage.includes('overview') || lowerMessage.includes('status')) {
+			const totalItems = this.state.inventory.size
+			const totalStock = Array.from(this.state.inventory.values())
+				.reduce((sum, item) => sum + item.currentStock, 0)
+			const lowStockCount = Array.from(this.state.inventory.values())
+				.filter(item => item.currentStock <= item.lowStockThreshold).length
+
+			return {
+				content: `Inventory Summary for ${this.currentPath}:
+• Total items: ${totalItems}
+• Total stock: ${totalStock} units
+• Low stock items: ${lowStockCount}
+• Active agents: ${this.state.agents.size}`,
+				metadata: { action: 'show_summary', totalItems, totalStock, lowStockCount },
+				actions: [{ type: 'show_summary', data: {} }]
+			}
+		}
+
+		// Help queries
+		if (lowerMessage.includes('help') || lowerMessage.includes('what can you do')) {
+			return {
+				content: `I can help you with inventory management! Here's what I can do:
+
+• **Check stock levels** - "Show me low stock items" or "What's the status of SKU ABC123?"
+• **Generate forecasts** - "Create a demand forecast" or "Predict next month's needs"
+• **Reorder suggestions** - "What needs reordering?" or "Suggest reorder quantities"
+• **Inventory updates** - "Update stock for XYZ789 to 100 units"
+• **Summary reports** - "Show inventory summary" or "Give me an overview"
+
+Just ask me in natural language and I'll help you manage your inventory!`,
+				metadata: { action: 'help' }
+			}
+		}
+
+		// Stock check queries (look for SKU patterns)
+		const skuMatch = message.match(/\b[A-Z0-9]{3,}\b/g)
+		if (skuMatch && skuMatch.length > 0) {
+			const sku = skuMatch[0]
+			const item = this.state.inventory.get(sku)
+
+			if (item) {
+				return {
+					content: `Stock level for ${sku}: ${item.currentStock} units (threshold: ${item.lowStockThreshold})`,
+					metadata: { action: 'check_stock', sku, stock: item.currentStock, threshold: item.lowStockThreshold },
+					actions: [{ type: 'check_stock', data: { sku } }]
+				}
+			} else {
+				return {
+					content: `I couldn't find SKU "${sku}" in the current inventory. Available SKUs: ${Array.from(this.state.inventory.keys()).join(', ')}`,
+					metadata: { action: 'check_stock', sku, found: false }
+				}
+			}
+		}
+
+		return null // No simple intent matched
+	}
+
+	// Execute actions from chat responses
+	private async executeChatActions(actions: Array<{ type: string; data: any }>, ws: WebSocket): Promise<void> {
+		for (const action of actions) {
+			try {
+				// Track action execution
+				await this.updateChatStats('action')
+
+				switch (action.type) {
+					case 'check_stock':
+						await this.executeCheckStock(action.data, ws)
+						break
+					case 'update_stock':
+						await this.executeUpdateStock(action.data, ws)
+						break
+					case 'generate_forecast':
+						await this.executeGenerateForecast(action.data, ws)
+						break
+					case 'show_low_stock':
+						await this.executeShowLowStock(ws)
+						break
+					case 'show_summary':
+						await this.executeShowSummary(ws)
+						break
+					default:
+						console.log(`[CHAT] Unknown action type: ${action.type}`)
+				}
+
+				// Track successful action
+				await this.updateChatStats('success')
+
+		} catch (error) {
+				console.error(`[CHAT] Error executing action ${action.type}:`, error)
+				// Track failed action
+				await this.updateChatStats('failure')
+			}
+		}
+	}
+
+	// Action implementations
+	private async executeCheckStock(data: { sku: string }, ws: WebSocket): Promise<void> {
+		const item = this.state.inventory.get(data.sku)
+		const stockLevel = item ? item.currentStock : 0
+		const threshold = item ? item.lowStockThreshold : 0
+
+		this.sendToWebSocket(ws, {
+			type: 'chatResponse',
+			role: 'assistant',
+			content: `Stock level for ${data.sku}: ${stockLevel} units (threshold: ${threshold})`,
+			timestamp: new Date().toISOString(),
+			metadata: {
+				action: 'check_stock',
+				sku: data.sku,
+				stock: stockLevel,
+				threshold: threshold,
+				status: stockLevel <= threshold ? 'low' : 'normal'
+			}
+		})
+	}
+
+	private async executeUpdateStock(data: { sku: string; quantity: number; operation: string }, ws: WebSocket): Promise<void> {
+		await this.processStockUpdate({
+			type: 'stockUpdate',
+			sku: data.sku,
+			quantity: data.quantity,
+			operation: data.operation as 'set' | 'increment' | 'decrement',
+			timestamp: new Date().toISOString(),
+			location: this.currentPath
+		})
+
+		this.sendToWebSocket(ws, {
+			type: 'chatResponse',
+			role: 'assistant',
+			content: `Updated stock for ${data.sku}: ${data.operation} by ${data.quantity} units`,
+			timestamp: new Date().toISOString(),
+			metadata: {
+				action: 'update_stock',
+				sku: data.sku,
+				operation: data.operation,
+				quantity: data.quantity
+			}
+		})
+	}
+
+	private async executeGenerateForecast(data: { period?: number }, ws: WebSocket): Promise<void> {
+		try {
+			const forecast = await this.workflowService.triggerForecastWorkflow({
+				location: this.currentPath,
+				forecastPeriod: data.period || 30,
+				forceRefresh: true
+			})
+
+			this.sendToWebSocket(ws, {
+				type: 'chatResponse',
+				role: 'assistant',
+				content: `Demand forecast workflow triggered for ${data.period || 30} days. Workflow ID: ${forecast}`,
+				timestamp: new Date().toISOString(),
+				metadata: {
+					action: 'generate_forecast',
+					workflowId: forecast,
+					period: data.period || 30
+				}
+			})
+		} catch (error) {
+			this.sendToWebSocket(ws, {
+				type: 'chatResponse',
+				role: 'assistant',
+				content: `Failed to generate forecast: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				timestamp: new Date().toISOString(),
+				metadata: { error: true }
+			})
+		}
+	}
+
+	private async executeShowLowStock(ws: WebSocket): Promise<void> {
+		const lowStockItems = Array.from(this.state.inventory.values())
+			.filter(item => item.currentStock <= item.lowStockThreshold)
+			.map(item => `${item.sku}: ${item.currentStock}/${item.lowStockThreshold}`)
+
+		this.sendToWebSocket(ws, {
+			type: 'chatResponse',
+			role: 'assistant',
+			content: lowStockItems.length > 0
+				? `Low stock items:\n${lowStockItems.join('\n')}`
+				: 'No items are currently low on stock.',
+			timestamp: new Date().toISOString(),
+			metadata: {
+				action: 'show_low_stock',
+				items: lowStockItems,
+				count: lowStockItems.length
+			}
+		})
+	}
+
+	private async executeShowSummary(ws: WebSocket): Promise<void> {
+		const totalItems = this.state.inventory.size
+		const totalStock = Array.from(this.state.inventory.values())
+			.reduce((sum, item) => sum + item.currentStock, 0)
+		const lowStockCount = Array.from(this.state.inventory.values())
+			.filter(item => item.currentStock <= item.lowStockThreshold).length
+
+		this.sendToWebSocket(ws, {
+			type: 'chatResponse',
+			role: 'assistant',
+			content: `Inventory Summary for ${this.currentPath}:
+• Total items: ${totalItems}
+• Total stock: ${totalStock} units
+• Low stock items: ${lowStockCount}
+• Agents: ${this.state.agents.size}`,
+			timestamp: new Date().toISOString(),
+			metadata: {
+				action: 'show_summary',
+				totalItems,
+				totalStock,
+				lowStockCount,
+				agentCount: this.state.agents.size
+			}
+		})
 	}
 
 	// Propagate stock updates to parent agents (agentic coordination)

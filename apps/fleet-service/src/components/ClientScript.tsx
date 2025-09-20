@@ -8,6 +8,13 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 	return (
 		<script dangerouslySetInnerHTML={{
 			__html: `
+				// Prevent multiple script executions
+				if (window.fleetManagerScriptLoaded) {
+					console.log('[CLIENT] Fleet Manager script already loaded, skipping...');
+				} else {
+					window.fleetManagerScriptLoaded = true;
+					console.log('[CLIENT] Loading Fleet Manager script...');
+
 				const currentPath = '${path}';
 				let ws = null;
 				let reconnectTimeout = null;
@@ -163,9 +170,25 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 				// Keep-alive mechanism
 				let keepAliveInterval = null;
 				let lastActivity = Date.now();
+				let connectionToastShown = false;
+				let disconnectionToastShown = false;
+				let webSocketInitialized = false;
 
 				// Initialize WebSocket connection
 				function connectWebSocket() {
+					// Prevent multiple connections
+					if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+						console.log('[CLIENT] WebSocket already connected or connecting, skipping...');
+						return;
+					}
+
+					// Close existing connection if any
+					if (ws) {
+						console.log('[CLIENT] Closing existing WebSocket connection');
+						ws.close();
+						ws = null;
+					}
+
 					const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 					const pathname = window.location.pathname.endsWith('/')
 						? window.location.pathname + 'ws'
@@ -191,11 +214,15 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 								sendWebSocketMessage({ type: 'ping' });
 							}, 1000);
 
-							// Show connection toast
-							toast.success('Connected to Fleet Manager', {
-								description: 'Real-time communication established',
-								duration: 2000
-							});
+							// Show connection toast only once per session
+							if (!connectionToastShown) {
+								toast.success('Connected to Fleet Manager', {
+									description: 'Real-time communication established',
+									duration: 2000
+								});
+								connectionToastShown = true;
+								disconnectionToastShown = false; // Reset for next disconnection
+							}
 						};
 
 						ws.onmessage = function(event) {
@@ -211,11 +238,15 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 							stopKeepAlive();
 							scheduleReconnect();
 
-							// Show disconnection toast
-							toast.warning('Connection Lost', {
-								description: 'Attempting to reconnect... Code: ' + event.code,
-								duration: 3000
-							});
+							// Show disconnection toast only once per disconnection
+							if (!disconnectionToastShown) {
+								toast.warning('Connection Lost', {
+									description: 'Attempting to reconnect... Code: ' + event.code,
+									duration: 3000
+								});
+								disconnectionToastShown = true;
+								connectionToastShown = false; // Reset for next connection
+							}
 						};
 
 						ws.onerror = function(error) {
@@ -271,6 +302,8 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 
 					reconnectTimeout = setTimeout(() => {
 						console.log('Attempting to reconnect...');
+						// Clear seen messages on reconnect to avoid stale deduplication
+						seenMessages.clear();
 						connectWebSocket();
 						reconnectDelay = Math.min(reconnectDelay * 2, maxReconnectDelay);
 					}, reconnectDelay);
@@ -366,6 +399,12 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 								description: message.message,
 								duration: 5000
 							});
+							break;
+						case 'chatResponse':
+							handleChatResponse(message);
+							break;
+						case 'chatStats':
+							handleChatStats(message);
 							break;
 						default:
 							console.log('Unknown message type:', message.type);
@@ -795,10 +834,17 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 					// Set up activity tracking
 					setupActivityTracking();
 
-					connectWebSocket();
+					// Only initialize WebSocket once
+					if (!webSocketInitialized) {
+						connectWebSocket();
+						webSocketInitialized = true;
+					}
 
 					// Load message history first
 					loadMessageHistory();
+
+					// Restore active tab from localStorage
+					restoreActiveTab();
 
 					// Add a welcome message
 					setTimeout(() => {
@@ -891,15 +937,15 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 						});
 
 						if (response.ok) {
-							addMessage('System', '✅ Inventory updated successfully: ' + sku);
+							addMessage('System', 'Inventory updated successfully: ' + sku);
 							document.getElementById('inventory-form').reset();
 							await refreshInventory();
 						} else {
 							const error = await response.json();
-							addMessage('System', '❌ Failed to update inventory: ' + error.details);
+							addMessage('System', 'Failed to update inventory: ' + error.details);
 						}
 					} catch (error) {
-						addMessage('System', '❌ Error updating inventory: ' + error.message);
+						addMessage('System', 'Error updating inventory: ' + error.message);
 					}
 				};
 
@@ -951,13 +997,23 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 							</div>
 							<div class="flex space-x-2">
 								<button onclick="analyzeItem('\${item.sku}')" class="text-purple-600 hover:text-purple-800 text-sm">
-									🧠 Analyze
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M9 12l2 2 4-4"/>
+										<path d="M21 12c.552 0 1-.448 1-1V5c0-.552-.448-1-1-1H3c-.552 0-1 .448-1 1v6c0 .552.448 1 1 1h18z"/>
+										<path d="M3 12v6c0 .552.448 1 1 1h16c.552 0 1-.448 1-1v-6"/>
+									</svg>
+									Analyze
 								</button>
 								<button onclick="quickStock('\${item.sku}', 'increment')" class="text-green-600 hover:text-green-800 text-sm">
-									➕
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M5 12h14"/>
+										<path d="M12 5v14"/>
+									</svg>
 								</button>
 								<button onclick="quickStock('\${item.sku}', 'decrement')" class="text-red-600 hover:text-red-800 text-sm">
-									➖
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M5 12h14"/>
+									</svg>
 								</button>
 							</div>
 						</div>
@@ -1088,13 +1144,13 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 						if (response.ok) {
 							const data = await response.json();
 							displayAIAnalysis(data.insights);
-							addMessage('AI Agent', \`🧠 Analysis complete for \${sku}: \${data.insights.reasoning}\`);
+							addMessage('AI Agent', \`Analysis complete for \${sku}: \${data.insights.reasoning}\`);
 						} else {
 							const error = await response.json();
-							addMessage('System', '❌ AI Analysis failed: ' + error.details);
+							addMessage('System', 'AI Analysis failed: ' + error.details);
 						}
 					} catch (error) {
-						addMessage('System', '❌ AI Analysis error: ' + error.message);
+						addMessage('System', 'AI Analysis error: ' + error.message);
 					}
 				};
 
@@ -1106,7 +1162,7 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 
 				window.displayAIAnalysis = function(insights) {
 					document.getElementById('ai-analysis-results').classList.remove('hidden');
-					document.getElementById('should-reorder').textContent = insights.shouldReorder ? '✅ Yes' : '❌ No';
+					document.getElementById('should-reorder').textContent = insights.shouldReorder ? 'Yes' : 'No';
 					document.getElementById('reorder-quantity').textContent = insights.reorderQuantity + ' units';
 					document.getElementById('urgency').textContent = insights.urgency.toUpperCase();
 					document.getElementById('confidence').textContent = Math.round(insights.confidence * 100) + '%';
@@ -1128,18 +1184,18 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 						const pathPrefix = currentPath === '/' ? '' : currentPath;
 						const apiUrl = baseUrl + pathPrefix + '/ai/forecast';
 
-						addMessage('AI Agent', '📊 Running 30-day demand forecast...');
+						addMessage('AI Agent', 'Running 30-day demand forecast...');
 						const response = await fetch(apiUrl, { method: 'POST' });
 						if (response.ok) {
 							const data = await response.json();
 							displayForecastResults(data.forecasts || []);
-							addMessage('AI Agent', \`📊 Demand forecast complete: \${data.totalForecasts} SKUs analyzed\`);
+							addMessage('AI Agent', \`Demand forecast complete: \${data.totalForecasts} SKUs analyzed\`);
 						} else {
 							const error = await response.json();
-							addMessage('System', '❌ Forecast failed: ' + error.details);
+							addMessage('System', 'Forecast failed: ' + error.details);
 						}
 					} catch (error) {
-						addMessage('System', '❌ Forecast error: ' + error.message);
+						addMessage('System', 'Forecast error: ' + error.message);
 					}
 				};
 
@@ -1148,7 +1204,12 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 					if (!forecasts || forecasts.length === 0) {
 						container.innerHTML = \`
 							<div class="text-center text-gray-500 py-4">
-								<div class="h-8 w-8 mx-auto text-gray-300 mb-2">📊</div>
+								<div class="h-8 w-8 mx-auto text-gray-300 mb-2">
+									<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<rect width="18" height="18" x="3" y="3" rx="2"/>
+										<path d="M9 9h6v6H9z"/>
+									</svg>
+								</div>
 								<p class="text-sm">No forecasts available</p>
 							</div>
 						\`;
@@ -1204,7 +1265,11 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 					if (!decisions || decisions.length === 0) {
 						container.innerHTML = \`
 							<div class="text-center text-gray-500 py-8">
-								<div class="h-12 w-12 mx-auto text-gray-300 mb-4">✅</div>
+								<div class="h-12 w-12 mx-auto text-gray-300 mb-4">
+									<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M20 6 9 17l-5-5"/>
+									</svg>
+								</div>
 								<p>No AI decisions recorded yet</p>
 								<p class="text-sm">Decisions will appear here as the AI makes inventory recommendations</p>
 							</div>
@@ -1214,7 +1279,11 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 
 					container.innerHTML = decisions.map(decision => \`
 						<div class="flex items-start p-3 border border-gray-200 rounded-lg">
-							<div class="h-4 w-4 text-green-500 mt-0.5 mr-3">✅</div>
+							<div class="h-4 w-4 text-green-500 mt-0.5 mr-3">
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M20 6 9 17l-5-5"/>
+								</svg>
+							</div>
 							<div class="flex-1">
 								<p class="text-sm font-medium text-gray-900">\${decision.decision_type}</p>
 								<p class="text-sm text-gray-600">\${decision.sku} - \${decision.reasoning}</p>
@@ -1226,19 +1295,19 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 
 				// AI Workflow Controls
 				window.enableAIMode = function() {
-					addMessage('System', '🤖 AI Auto-Reorder Mode: ENABLED');
+					addMessage('System', 'AI Auto-Reorder Mode: ENABLED');
 					addMessage('AI Agent', 'I will now automatically analyze inventory and make reorder recommendations!');
 				};
 
 				window.disableAIMode = function() {
-					addMessage('System', '🤖 AI Auto-Reorder Mode: DISABLED');
+					addMessage('System', 'AI Auto-Reorder Mode: DISABLED');
 					addMessage('AI Agent', 'AI auto-reorder has been disabled. Manual approval required for all orders.');
 				};
 
 				window.triggerAIWorkflow = function() {
-					addMessage('System', '⚡ Triggering AI workflow for all inventory items...');
+					addMessage('System', 'Triggering AI workflow for all inventory items...');
 					setTimeout(() => {
-						addMessage('AI Agent', '🤖 Workflow complete: Analyzed 3 SKUs, generated 1 reorder recommendation');
+						addMessage('AI Agent', 'Workflow complete: Analyzed 3 SKUs, generated 1 reorder recommendation');
 					}, 2000);
 				};
 
@@ -1248,7 +1317,7 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 					originalAddMessage(from, content);
 
 					// Update AI activity feed
-					if (from.includes('AI') || from === 'System' && content.includes('🤖')) {
+					if (from.includes('AI') || from === 'System' && content.includes('AI')) {
 						updateAIActivity(from, content);
 					}
 
@@ -1270,7 +1339,16 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 					const activityItem = document.createElement('div');
 					activityItem.className = 'flex items-start p-3 bg-purple-50 border border-purple-200 rounded-lg';
 					activityItem.innerHTML = \`
-						<div class="h-4 w-4 text-purple-500 mt-0.5 mr-3">🤖</div>
+						<div class="h-4 w-4 text-purple-500 mt-0.5 mr-3">
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M12 8V4H8"/>
+								<rect width="16" height="12" x="4" y="8" rx="2"/>
+								<path d="M2 14h2"/>
+								<path d="M20 14h2"/>
+								<path d="M15 13v2"/>
+								<path d="M9 13v2"/>
+							</svg>
+						</div>
 						<div class="flex-1">
 							<p class="text-sm font-medium text-purple-900">\${from}</p>
 							<p class="text-sm text-purple-700">\${content}</p>
@@ -1293,17 +1371,17 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 					}
 				};
 
-				// Tab switching functionality
+				// Tab switching functionality with localStorage persistence
 				window.switchTab = function(tabName) {
 					// Hide all content
-					const contents = ['fleet-content', 'inventory-content', 'ai-content'];
+					const contents = ['fleet-content', 'inventory-content', 'chat-content', 'ai-content'];
 					contents.forEach(id => {
 						const el = document.getElementById(id);
 						if (el) el.classList.remove('active');
 					});
 
 					// Reset all tab buttons
-					const tabs = ['tab-fleet', 'tab-inventory', 'tab-ai'];
+					const tabs = ['tab-fleet', 'tab-inventory', 'tab-chat', 'tab-ai'];
 					tabs.forEach(id => {
 						const btn = document.getElementById(id);
 						if (btn) btn.classList.remove('active');
@@ -1316,13 +1394,284 @@ export const ClientScript: FC<ClientScriptProps> = ({ path }) => {
 					if (selectedContent) selectedContent.classList.add('active');
 					if (selectedTab) selectedTab.classList.add('active');
 
+					// Save active tab to localStorage
+					try {
+						localStorage.setItem('fleetManager_activeTab', tabName);
+					} catch (error) {
+						console.warn('Could not save tab state to localStorage:', error);
+					}
+
 					// Load data when switching to tabs
 					if (tabName === 'inventory') {
 						if (window.refreshInventory) window.refreshInventory();
+					} else if (tabName === 'chat') {
+						// Initialize chat when switching to chat tab
+						initializeChatWithConnection();
 					} else if (tabName === 'ai') {
 						// Load AI data if needed
 					}
 				};
+
+				// Function to restore active tab from localStorage
+				window.restoreActiveTab = function() {
+					try {
+						const savedTab = localStorage.getItem('fleetManager_activeTab');
+						if (savedTab && ['fleet', 'inventory', 'chat', 'ai'].includes(savedTab)) {
+							// Small delay to ensure DOM is ready
+							setTimeout(() => {
+								window.switchTab(savedTab);
+							}, 100);
+						} else {
+							// Default to fleet tab if no saved tab or invalid tab
+							setTimeout(() => {
+								window.switchTab('fleet');
+							}, 100);
+						}
+					} catch (error) {
+						console.warn('Could not restore tab state from localStorage:', error);
+						// Default to fleet tab if localStorage is not available
+						setTimeout(() => {
+							window.switchTab('fleet');
+						}, 100);
+					}
+				};
+
+				// Chat functionality
+				let chatMessageCount = 0;
+				let chatActionsCount = 0;
+
+				function initializeChat() {
+					const chatForm = document.getElementById('chat-form');
+					const chatInput = document.getElementById('chat-input');
+
+					if (chatForm && chatInput) {
+						chatForm.addEventListener('submit', function(e) {
+							e.preventDefault();
+							const message = chatInput.value.trim();
+							if (message) {
+								sendChatMessage(message);
+								chatInput.value = '';
+							}
+						});
+
+						// Also handle Enter key in input
+						chatInput.addEventListener('keypress', function(e) {
+							if (e.key === 'Enter') {
+								e.preventDefault();
+								const message = chatInput.value.trim();
+								if (message) {
+									sendChatMessage(message);
+									chatInput.value = '';
+								}
+							}
+						});
+					}
+				}
+
+				function sendChatMessage(message) {
+					console.log('[CHAT] Attempting to send message:', message);
+					console.log('[CHAT] WebSocket state:', ws ? ws.readyState : 'null');
+					console.log('[CHAT] WebSocket OPEN constant:', WebSocket.OPEN);
+
+					if (!ws || ws.readyState !== WebSocket.OPEN) {
+						console.error('[CHAT] WebSocket not connected. State:', ws ? ws.readyState : 'null');
+						toast.error('WebSocket not connected', {
+							description: 'Please wait for connection to be established',
+							duration: 5000
+						});
+						return;
+					}
+
+					// Add user message to chat
+					addChatMessage('user', message);
+					chatMessageCount++;
+					updateChatStats();
+
+					// Send to server
+					const chatMessage = {
+						type: 'chatMessage',
+						content: message,
+						userId: 'user-' + Date.now()
+					};
+
+					console.log('[CHAT] Sending message to WebSocket:', chatMessage);
+					ws.send(JSON.stringify(chatMessage));
+				}
+
+				function addChatMessage(role, content, metadata = null) {
+					const messagesContainer = document.getElementById('chat-messages');
+					if (!messagesContainer) return;
+
+					// Create a unique key for deduplication
+					const messageKey = role + '-' + content + '-' + Date.now();
+
+					// Skip if we've already seen this message recently (within 1 second)
+					const recentKey = role + '-' + content;
+					if (seenMessages.has(recentKey)) {
+						console.log('[CHAT] Skipping duplicate addChatMessage:', recentKey);
+						return;
+					}
+
+					// Mark as seen
+					seenMessages.add(recentKey);
+
+					// Clear the recent key after 1 second to allow legitimate duplicates
+					setTimeout(() => {
+						seenMessages.delete(recentKey);
+					}, 1000);
+
+					const messageEl = document.createElement('div');
+					messageEl.className = 'chat-message ' + role;
+
+					const avatar = role === 'user'
+						? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>'
+						: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>';
+					const sender = role === 'user' ? 'You' : 'AI Assistant';
+					const time = new Date().toLocaleTimeString();
+
+					messageEl.innerHTML = \`
+						<div class="message-avatar">\${avatar}</div>
+						<div class="message-content">
+							<div class="message-header">
+								<span class="message-sender">\${sender}</span>
+								<span class="message-time">\${time}</span>
+							</div>
+							<div class="message-text">\${content}</div>
+							\${metadata ? \`<div class="message-metadata">\${formatMetadata(metadata)}</div>\` : ''}
+						</div>
+					\`;
+
+					messagesContainer.appendChild(messageEl);
+					messagesContainer.scrollTop = messagesContainer.scrollHeight;
+				}
+
+				function formatMetadata(metadata) {
+					if (!metadata) return '';
+
+					let html = '';
+					if (metadata.action) {
+						html += \`<div class="metadata-item"><span class="metadata-label">Action:</span> <span class="metadata-value">\${metadata.action}</span></div>\`;
+					}
+					if (metadata.sku) {
+						html += \`<div class="metadata-item"><span class="metadata-label">SKU:</span> <span class="metadata-value">\${metadata.sku}</span></div>\`;
+					}
+					if (metadata.stock !== undefined) {
+						html += \`<div class="metadata-item"><span class="metadata-label">Stock:</span> <span class="metadata-value">\${metadata.stock}</span></div>\`;
+					}
+					if (metadata.confidence) {
+						html += \`<div class="metadata-item"><span class="metadata-label">Confidence:</span> <span class="metadata-value">\${Math.round(metadata.confidence * 100)}%</span></div>\`;
+					}
+
+					return html;
+				}
+
+				function updateChatStats() {
+					const messagesCountEl = document.getElementById('chat-messages-count');
+					const actionsCountEl = document.getElementById('chat-actions-count');
+
+					if (messagesCountEl) messagesCountEl.textContent = chatMessageCount;
+					if (actionsCountEl) actionsCountEl.textContent = chatActionsCount;
+				}
+
+				// Quick action functions
+				window.sendQuickMessage = function(message) {
+					const chatInput = document.getElementById('chat-input');
+					if (chatInput) {
+						chatInput.value = message;
+						sendChatMessage(message);
+					}
+				};
+
+				// Test functions for persistence verification
+				window.testPersistence = function() {
+					console.log('Testing chat statistics persistence...');
+					sendWebSocketMessage({ type: 'testPersistence' });
+				};
+
+				window.testPersistence25s = function() {
+					console.log('Testing chat statistics persistence over 25 seconds...');
+					sendWebSocketMessage({ type: 'testPersistence25s' });
+				};
+
+				window.testWebSocketConnection = function() {
+					console.log('Testing WebSocket connection...');
+					console.log('WebSocket state:', ws ? ws.readyState : 'null');
+					console.log('WebSocket OPEN constant:', WebSocket.OPEN);
+
+					if (!ws || ws.readyState !== WebSocket.OPEN) {
+						toast.error('WebSocket Not Connected', {
+							description: 'State: ' + (ws ? ws.readyState : 'null') + ', OPEN: ' + WebSocket.OPEN,
+							duration: 5000
+						});
+						return;
+					}
+
+					// Send a test ping
+					sendWebSocketMessage({ type: 'ping' });
+
+					toast.success('WebSocket Test', {
+						description: 'Ping sent successfully. Check console for response.',
+						duration: 3000
+					});
+				};
+
+				// Handle chat responses from WebSocket
+				function handleChatResponse(data) {
+					if (data.type === 'chatResponse') {
+						// Create a unique key for deduplication
+						const messageKey = data.role + '-' + data.content + '-' + data.timestamp;
+
+						// Skip if we've already seen this message
+						if (seenMessages.has(messageKey)) {
+							console.log('[CHAT] Skipping duplicate message:', messageKey);
+							return;
+						}
+
+						// Mark as seen and add to chat
+						seenMessages.add(messageKey);
+						addChatMessage(data.role, data.content, data.metadata);
+
+						if (data.metadata && data.metadata.action) {
+							chatActionsCount++;
+							updateChatStats();
+						}
+					}
+				}
+
+				// Handle chat statistics updates from WebSocket
+				function handleChatStats(data) {
+					if (data.type === 'chatStats') {
+						const messagesCountEl = document.getElementById('chat-messages-count');
+						const actionsCountEl = document.getElementById('chat-actions-count');
+						const successRateEl = document.getElementById('chat-success-rate');
+
+						if (messagesCountEl) messagesCountEl.textContent = data.messagesToday;
+						if (actionsCountEl) actionsCountEl.textContent = data.actionsExecuted;
+						if (successRateEl) successRateEl.textContent = data.successRate + '%';
+
+						console.log('Updated chat stats:', data);
+					}
+				}
+
+				// Message deduplication
+				const seenMessages = new Set();
+
+				// Enhanced chat initialization with connection check
+				function initializeChatWithConnection() {
+					console.log('[CHAT] Initializing chat with connection check');
+
+					// Check WebSocket connection status
+					if (ws && ws.readyState === WebSocket.OPEN) {
+						console.log('[CHAT] WebSocket is connected, chat ready');
+					} else {
+						console.log('[CHAT] WebSocket not connected, chat will wait for connection');
+					}
+
+					// Initialize chat functionality
+					initializeChat();
+				}
+
+				} // End of script execution guard
 			`
 		}} />
 	)

@@ -4,7 +4,7 @@ import { useWorkersLogger } from 'workers-tagged-logger'
 import { useNotFound, useOnError } from '@repo/hono-helpers'
 
 import type { App } from './context'
-import { InventoryAgent } from './fleet-manager'
+import { InventoryAgent } from './durable-objects/fleet-manager'
 import { FleetManagerPage } from './components/FleetManagerPage'
 
 // Export for Durable Object binding
@@ -125,6 +125,13 @@ const app = new Hono<App>()
 			}
 		}
 
+		// Special handling for inventory API paths that might be nested
+		if (pathWithoutQuery.includes('/inventory/')) {
+			const inventoryIndex = pathWithoutQuery.indexOf('/inventory/')
+			fleetPath = pathWithoutQuery.substring(0, inventoryIndex) || '/'
+			apiEndpoint = pathWithoutQuery.substring(inventoryIndex)
+		}
+
 		// Handle WebSocket paths
 		if (tenantPath.endsWith('/ws')) {
 			fleetPath = tenantPath.slice(0, -3)
@@ -156,7 +163,8 @@ const app = new Hono<App>()
 			method: c.req.method,
 			headers: {
 				...Object.fromEntries(c.req.raw.headers.entries()),
-				'x-fleet-path': fleetPath
+				'x-fleet-path': fleetPath,
+				'x-tenant-id': tenantId || 'demo'
 			},
 			body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? c.req.raw.body : undefined
 		})
@@ -181,7 +189,8 @@ async function handleWebSocketUpgrade(c: any, path: string, tenantId: string): P
 	const newRequest = new Request(c.req.raw, {
 		headers: {
 			...Object.fromEntries(c.req.raw.headers.entries()),
-			'x-fleet-path': fleetPath
+			'x-fleet-path': fleetPath,
+			'x-tenant-id': tenantId
 		}
 	})
 
@@ -189,6 +198,48 @@ async function handleWebSocketUpgrade(c: any, path: string, tenantId: string): P
 	return stub.fetch(newRequest)
 }
 
-export default app
+// Export Workflows for Cloudflare Workflows binding
+export { ReorderWorkflow } from './workflows/reorder-workflow'
+export { DemandForecastWorkflow } from './workflows/demand-forecast-workflow'
+export { InventorySyncWorkflow } from './workflows/inventory-sync-workflow'
 
-// FleetManager was renamed to InventoryAgent - already exported above
+// Default export with Hono app and queue handler
+export default {
+	fetch: app.fetch,
+	async queue(batch: any, env: any) {
+		console.log('Processing queue batch:', batch)
+
+		// Handle different queue types based on the queue name
+		for (const message of batch.messages) {
+			try {
+				console.log('Processing message:', message.body)
+
+				// You can add specific logic here based on the queue name
+				// The queue name is available in batch.queue
+				switch (batch.queue) {
+					case 'notifications':
+						console.log('Processing notification:', message.body)
+						// Add notification processing logic here
+						break
+					case 'audit-logs':
+						console.log('Processing audit log:', message.body)
+						// Add audit log processing logic here
+						break
+					case 'embeddings':
+						console.log('Processing embedding:', message.body)
+						// Add embedding processing logic here
+						break
+					default:
+						console.log('Unknown queue:', batch.queue)
+				}
+
+				// Acknowledge the message
+				message.ack()
+			} catch (error) {
+				console.error('Error processing queue message:', error)
+				// Retry the message by not acknowledging it
+				// The message will be retried according to the queue configuration
+			}
+		}
+	}
+}

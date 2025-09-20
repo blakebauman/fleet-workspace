@@ -22,12 +22,69 @@
 	"ai": {
 		"binding": "AI"
 	},
-	// "vectorize": [
-	// 	{
-	// 		"binding": "INVENTORY_VECTORS",
-	// 		"index_name": "inventory-embeddings"
-	// 	}
-	// ],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "fleet-analytics",
+			"database_id": "34ed6f68-54e6-4595-b48d-ad0978f56f25"
+		}
+	],
+	"vectorize": [
+		{
+			"binding": "INVENTORY_VECTORS",
+			"index_name": "inventory-embeddings"
+		}
+	],
+	"workflows": [
+		{
+			"name": "reorder-workflow",
+			"binding": "REORDER_WORKFLOW",
+			"class_name": "ReorderWorkflow"
+		},
+		{
+			"name": "demand-forecast-workflow",
+			"binding": "FORECAST_WORKFLOW",
+			"class_name": "DemandForecastWorkflow"
+		},
+		{
+			"name": "inventory-sync-workflow",
+			"binding": "SYNC_WORKFLOW",
+			"class_name": "InventorySyncWorkflow"
+		}
+	],
+	"queues": {
+		"producers": [
+			{
+				"binding": "NOTIFICATION_QUEUE",
+				"queue": "notifications"
+			},
+			{
+				"binding": "AUDIT_QUEUE",
+				"queue": "audit-logs"
+			},
+			{
+				"binding": "EMBEDDING_QUEUE",
+				"queue": "embeddings"
+			}
+		],
+		"consumers": [
+			{
+				"queue": "notifications",
+				"max_batch_size": 10,
+				"max_batch_timeout": 30
+			},
+			{
+				"queue": "audit-logs",
+				"max_batch_size": 50,
+				"max_batch_timeout": 60
+			},
+			{
+				"queue": "embeddings",
+				"max_batch_size": 20,
+				"max_batch_timeout": 45
+			}
+		]
+	},
 	"migrations": [
 		{
 			"tag": "v1",

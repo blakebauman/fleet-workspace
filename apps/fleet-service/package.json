@@ -16,6 +16,7 @@
 		"test": "run-vitest"
 	},
 	"dependencies": {
+		"@cloudflare/agents": "^0.1.0",
 		"@repo/hono-helpers": "workspace:*",
 		"@repo/workspace-dependencies": "workspace:*",
 		"hono": "4.9.1",
